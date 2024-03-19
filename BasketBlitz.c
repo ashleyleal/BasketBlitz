@@ -1,5 +1,5 @@
 /*
- * ECE243 Final Project: Basket Blitz
+ * ECE243 Final Project: BasketBlitz
  * File:   BasketBlitz.c
  * Created on: Mar 18 2024
  * Authors: Ashley Leal and Zuha Mujib
@@ -8,6 +8,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+/* Constants */
+#define GRAVITY 9.81
 
 /* VGA Display Parameters */
 volatile int pixel_buffer_start; 
@@ -21,6 +24,9 @@ void clear_screen();
 void wait_for_vsync();
 
 /* Game Logic Functions Prototypes */
+void initializeGame(Game *game);
+void updateBasketball(Basketball *ball, int deltaTime);
+void updateGame(Game *game, int deltaTime);
 
 /* Structs */
 typedef struct {
@@ -39,7 +45,7 @@ typedef struct {
 } Player;
 
 typedef struct {
-    Position initalPos;
+    Position initialPos;
     Position currentPos;
     float startingAngle;
     Velocity initialVel;
@@ -97,3 +103,73 @@ void wait_for_vsync() {
 /* -------------------------------------------------------------------------- */
 /*                         Game Logic subroutines                             */
 /* -------------------------------------------------------------------------- */
+
+void initializeGame(Game *game) {
+    // Initialize the players
+    game->player1.score = 0;
+    game->player2.score = 0;
+
+    // Set the names of the players
+    strcpy(game->player1.name, "Player 1"); // make this take user input eventually but hardcode for now
+    strcpy(game->player2.name, "Player 2");
+    
+    // Initialize the basketball
+    game->currentBall.initialPos.x = 0;
+    game->currentBall.initialPos.y = 0;
+    game->currentBall.currentPos.x = 0;
+    game->currentBall.currentPos.y = 0;
+    game->currentBall.startingAngle = 0;
+    game->currentBall.initialVel.x = 0;
+    game->currentBall.initialVel.y = 0;
+    game->currentBall.currentVel.x = 0;
+    game->currentBall.currentVel.y = 0;
+    game->currentBall.isMoving = false;
+    game->currentBall.owner = game->player1;
+    
+    // Initialize the game
+    game->currentTurn = game->player1;
+    game->currentTime = 0;
+    game->maxTime = 60;
+    game->currentRound = 1;
+    game->maxRounds = 3;
+    game->isGameOver = false;
+}
+
+
+void updateBasketball(Basketball *ball, int deltaTime) {
+    
+    // If the basketball is not moving, do not update its position or velocity
+    if (!ball->isMoving) {
+        return;
+    }
+    
+    // Update the position of the basketball
+    ball->currentPos.x += ball->currentVel.x * deltaTime; // x = v0t
+    ball->currentPos.y += ball->currentVel.y * deltaTime - (0.5 * GRAVITY) * deltaTime * deltaTime; // y = v0t - 0.5gt^2
+
+    // Update the velocity of the basketball
+    // x velocity remains constant
+    ball->currentVel.y -= GRAVITY * deltaTime; // v = v0 - gt
+
+    // Check if the basketball has hit the ground
+    if (ball->currentPos.y <= 0) {
+        ball->currentPos.y = 0;
+        ball->currentVel.y = 0;
+        ball->isMoving = false;
+    }
+}
+
+void updateGame(Game *game, int deltaTime) {
+    // Update the basketball
+    updateBasketball(&game->currentBall, deltaTime);
+    
+    // Update the time
+    game->currentTime += deltaTime;
+    
+    // Check if the game is over
+    if (game->currentTime >= game->maxTime) {
+        game->isGameOver = true;
+    }
+}
+
+
