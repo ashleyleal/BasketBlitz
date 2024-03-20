@@ -18,16 +18,6 @@ short int Buffer1[240][512];
 short int Buffer2[240][512];
 volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
 
-/* VGA Graphics Functions Prototypes */
-void plot_pixel(int x, int y, short int pixel_color);
-void clear_screen();
-void wait_for_vsync();
-
-/* Game Logic Functions Prototypes */
-void initializeGame(Game *game);
-void updateBasketball(Basketball *ball, int deltaTime);
-void updateGame(Game *game, int deltaTime);
-
 /* Structs */
 typedef struct {
     int x;
@@ -66,7 +56,44 @@ typedef struct {
     bool isGameOver;
 } Game;
 
+/* VGA Graphics Functions Prototypes */
+void plot_pixel(int x, int y, short int pixel_color);
+void clear_screen();
+void wait_for_vsync();
+
+/* Game Logic Functions Prototypes */
+void initializeGame(Game *game);
+void updateBasketball(Basketball *ball, int deltaTime);
+void updateGame(Game *game, int deltaTime);
+
+
 int main(void) {
+
+    /* set front pixel buffer to Buffer 1 */
+    *(pixel_ctrl_ptr + 1) = (int)&Buffer1;  // first store the address in the  back buffer
+    /* now, swap the front/back buffers, to set the front buffer location */
+    wait_for_vsync();
+    /* initialize a pointer to the pixel buffer, used by drawing functions */
+    pixel_buffer_start = *pixel_ctrl_ptr;
+    clear_screen();  // pixel_buffer_start points to the pixel buffer
+
+    /* set back pixel buffer to Buffer 2 */
+    *(pixel_ctrl_ptr + 1) = (int)&Buffer2;
+    pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // we draw on the back buffer
+    clear_screen();                              // pixel_buffer_start points to the pixel buffer
+
+    // Initialize the game
+    Game game;
+    initializeGame(&game);
+
+    // Main game loop
+    while (1) {
+
+        wait_for_vsync(); // swap front and back buffers on VGA vertical sync
+        pixel_buffer_start = *(pixel_ctrl_ptr + 1); // point to the back buffer
+    }
+
+    // Initialize the VGA display
     return 0;
 }
 
