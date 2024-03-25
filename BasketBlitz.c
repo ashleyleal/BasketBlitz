@@ -18,6 +18,10 @@ short int Buffer1[240][512];
 short int Buffer2[240][512];
 volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
 
+/* PS2 Parameters */
+volatile int *PS2_ptr = (int *)0xFF200100;
+bool spacebarPressed = false;
+
 /* Image Arrays */
 const unsigned short basketblitz[];
 
@@ -66,12 +70,17 @@ typedef struct {
     GameState currentState;
 } Game;
 
+/* PS2 Functions Prototypes */
+void PS2_ISR();
+void PS2_init();
+
 /* VGA Graphics Functions Prototypes */
 void plot_pixel(int x, int y, short int color);
 void clear_screen();
 void wait_for_vsync();
 
 void draw_image(const unsigned short image[], Position pos, int width, int height);
+void draw_basketball(int x0, int y0, int radius, short int color, bool fill);
 
 /* Game Logic Functions Prototypes */
 void initializeGame(Game *game);
@@ -98,13 +107,19 @@ int main(void) {
     Game game;
     initializeGame(&game);
 
+    // Initialize the PS2
+    PS2_init();
+
     // Main game loop
     while (!game.isGameOver) {
         switch (game.currentState) {
             case INITIALIZING:
                 printf("Game initialized\n");
                 draw_image(basketblitz, (Position){0, 0}, 320, 240);
-                // game.currentState = PLAYING; // transition to PLAYING state
+                if (spacebarPressed) {
+                    game.currentState = PLAYING;
+                    spacebarPressed = false;
+                }
                 break;
             case PLAYING:
                 printf("Game started\n");
@@ -126,6 +141,30 @@ int main(void) {
 
     // Initialize the VGA display
     return 0;
+}
+/* -------------------------------------------------------------------------- */
+/*                              PS2 subroutines                               */
+/* -------------------------------------------------------------------------- */
+
+void PS2_ISR() {
+    int PS2_data, RVALID;
+    PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
+    RVALID = PS2_data & 0x8000;  // extract the RVALID field
+    if (RVALID != 0) {
+        /* always save the last three bytes received */
+        PS2_data = PS2_data & 0xFF;  // the least significant byte is the last byte received
+        // PS2_data = PS2_data & 0xFF00; // the most significant byte is the first byte received
+
+        // Spacebar
+        if (PS2_data == 0x20) {
+            spacebarPressed = true;
+        }
+    }
+}
+
+void PS2_init() {
+    *(PS2_ptr) = 0xFF; // reset
+    *(PS2_ptr + 1) = 1;  // write to the PS/2 Control register to enable interrupts
 }
 
 /* -------------------------------------------------------------------------- */
@@ -155,6 +194,26 @@ void wait_for_vsync() {
         {
             status = *(pixel_ctrl_ptr + 3);
         }
+    }
+}
+
+void draw_basketball(int x0, int y0, int radius, short int color, bool fill) {
+    // Loop through x values from -radius to radius
+    for (int x = -radius; x <= radius; x++) {
+        // Calculate y for both positive and negative square roots
+        int y1 = y0 + sqrt(radius * radius - x * x);
+        int y2 = y0 - sqrt(radius * radius - x * x);
+        
+        // Plot pixels for both halves of the circle
+        plot_pixel(x0 + x, y1, color);
+        plot_pixel(x0 + x, y2, color);
+
+        // Draw horizontal lines between the upper and lower halves of the circle
+		if (fill){
+			for (int y = y2 + 1; y < y1; y++) {
+				plot_pixel(x0 + x, y, color);
+			}
+		}
     }
 }
 
