@@ -11,7 +11,9 @@
 
 /* Constants */
 #define GRAVITY 9.81
-#define BASKETBALL_RADIUS 10
+#define BASKETBALL_RADIUS 20
+#define X_DIM 320
+#define Y_DIM 240
 
 /* VGA Display Parameters */
 volatile int pixel_buffer_start;
@@ -56,6 +58,7 @@ typedef enum {
     INITIALIZING,
     PLAYING,
     GAME_OVER,
+    NONE
 } GameState;
 
 typedef struct {
@@ -69,6 +72,7 @@ typedef struct {
     int maxRounds;
     bool isGameOver;
     GameState currentState;
+    GameState previousState;
 } Game;
 
 enum Control {
@@ -95,6 +99,7 @@ void wait_for_vsync();
 
 void draw_image(const unsigned short image[], Position pos, int width, int height);
 void draw_basketball(Basketball *ball, short int color, bool fill);
+void draw_box(int x, int y, short int color);
 
 /* Game Logic Functions Prototypes */
 void initializeGame(Game *game);
@@ -102,7 +107,7 @@ void updateBasketball(Basketball *ball, int deltaTime);
 void updateGame(Game *game, int deltaTime);
 
 /* FSM Functions Prototypes */
-void updateState(Game *game, unsigned char pressedKey, bool stateLoaded);
+void updateState(Game *game, unsigned char pressedKey);
 
 
 int main(void) {
@@ -123,20 +128,19 @@ int main(void) {
     Game game;
     initializeGame(&game);
 
-    bool stateLoaded;  // prevent the game state and initial background of each state from being reinitialized every frame
-
     // Initialize the PS2
     unsigned char pressedKey = 0;
     *(PS2_ptr) = 0xFF;  // reset the PS/2 port
+    clearKeyboardBuffer();
 
     // Main game loop
-    while (!game.isGameOver) {
+    while (1) {
         // Read the keyboard
         read_keyboard(&byte1, &byte2, &byte3);
         pressedKey = byte3;
 
         // Update the game state
-        updateState(&game, pressedKey, stateLoaded);
+        updateState(&game, pressedKey);
 
         wait_for_vsync();                            // Swap buffers
         pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // Back buffer
@@ -151,64 +155,67 @@ int main(void) {
 /* -------------------------------------------------------------------------- */
 
 // Update the game state based on the current state and set initial screen for each state
-void updateState(Game *game, unsigned char pressedKey, bool stateLoaded) {
+void updateState(Game *game, unsigned char pressedKey) {
+    
+    game->previousState = game->currentState; // Save the previous state
+    clear_screen(); // Clear the screen
+    
     switch (game->currentState) {
+        
         case INITIALIZING:
-            stateLoaded = false;
 
-            // Draw the initial intro screen
-            if (!stateLoaded) {
-                // Load the game state
-                printf("Game initialized\n");
-                draw_image(basketblitz, (Position){0, 0}, 320, 240);
-                stateLoaded = true;
-            }
+            printf("Game initialized\n");  
+
+            draw_image(basketblitz, (Position){0, 0}, 320, 240);
 
             // Transition to the playing state when the spacebar is pressed
             if (pressedKey == SPACEBAR) {
                 game->currentState = PLAYING;
             }
+
             break;
 
         case PLAYING:
-            stateLoaded = false;
 
-            // Draw the initial game screen
-            if (!stateLoaded) {
-                // Load the game state
-                printf("Game playing\n");
-                clear_screen();
-                stateLoaded = true;
-            }
+            printf("Game playing\n");
 
-            // Update the game
-            // updateGame(&game, 1);  // Update the game every 1 ms
             draw_basketball(&game->currentBall, 0xFFFF, true);
 
             // Transition to the game over state when the game is over
-            if (pressedKey == W || game->currentTime >= game->maxTime || game->currentRound > game->maxRounds) {
+            if (pressedKey == ESC || game->currentTime >= game->maxTime || game->currentRound >= game->maxRounds) {
                 game->currentState = GAME_OVER;
-                game->isGameOver = true;
+            
+            } else if (pressedKey == W) {
+                game->currentBall.currentPos.y += 5;
             }
+            else if (pressedKey == S) {
+                game->currentBall.currentPos.y -= 5;
+            }
+            else if (pressedKey == A) {
+                game->currentBall.currentPos.x -= 5;
+            }
+            else if (pressedKey == D) {
+                game->currentBall.currentPos.x += 5;
+            }
+
+            updateGame(game, 0); // one second passes between each cycle
+
             break;
 
         case GAME_OVER:
-            stateLoaded = false;
 
-            // Draw the game over screen
-            if (!stateLoaded) {
-                // Load the game state
-                printf("Game over\n");
-                clear_screen();
-                stateLoaded = true;
-            }
+            printf("Game over\n");
+
+            draw_box(100, 100, 0xFFFF);
 
             // Transition to the initializing state when the spacebar is pressed
-            if (pressedKey == SPACEBAR) {
+            if (pressedKey == ESC) {
+                game->previousState = GAME_OVER;
                 game->currentState = INITIALIZING;
                 // Reset the game
                 initializeGame(game);
             }
+
             break;
     }
     clearKeyboardBuffer(); // Prevents the game from registering multiple key presses and overflowing the buffer
@@ -312,6 +319,29 @@ void draw_image(const unsigned short image[], Position pos, int width, int heigh
 //         }
 //     }
 // }
+
+
+void draw_box(int x, int y, short int color) {
+    // Draw box at position (x, y) in back buffer
+    // Implement your drawing logic here
+    
+    // Adjust box size to fit within screen boundaries
+    int box_size = 10;
+    
+    // Ensure x and y are within bounds
+    if (x < 0) x = 0;
+    if (x + box_size >= 320) x = 320 - box_size - 1;
+    if (y < 0) y = 0;
+    if (y + box_size >= 240) y = 240 - box_size - 1;
+
+    // Draw box within screen boundaries
+    for (int i = 0; i < box_size; i++) {
+        for (int j = 0; j < box_size; j++) {
+            plot_pixel(x + i, y + j, color);
+        }
+    }
+}
+
 /* -------------------------------------------------------------------------- */
 /*                         Game Logic subroutines                             */
 /* -------------------------------------------------------------------------- */
@@ -326,10 +356,10 @@ void initializeGame(Game *game) {
     strcpy(game->player2.name, "Player 2");
 
     // Initialize the basketball
-    game->currentBall.initialPos.x = 0;
-    game->currentBall.initialPos.y = 0;
-    game->currentBall.currentPos.x = 0;
-    game->currentBall.currentPos.y = 0;
+    game->currentBall.initialPos.x = X_DIM / 2;
+    game->currentBall.initialPos.y = Y_DIM / 2;
+    game->currentBall.currentPos.x = X_DIM / 2;
+    game->currentBall.currentPos.y = Y_DIM / 2;
     game->currentBall.startingAngle = 0;
     game->currentBall.initialVel.x = 0;
     game->currentBall.initialVel.y = 0;
@@ -341,11 +371,12 @@ void initializeGame(Game *game) {
     // Initialize the game
     game->currentTurn = game->player1;
     game->currentTime = 0;
-    game->maxTime = 60;
+    game->maxTime = 120;
     game->currentRound = 1;
     game->maxRounds = 3;
     game->isGameOver = false;
     game->currentState = INITIALIZING;
+    game->previousState = NONE;
 }
 
 void updateBasketball(Basketball *ball, int deltaTime) {
