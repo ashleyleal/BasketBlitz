@@ -20,7 +20,7 @@ volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
 
 /* PS2 Parameters */
 volatile int *PS2_ptr = (int *)0xFF200100;
-bool spacebarPressed = false;
+unsigned char byte1 = 0, byte2 = 0, byte3 = 0;
 
 /* Image Arrays */
 const unsigned short basketblitz[];
@@ -70,9 +70,21 @@ typedef struct {
     GameState currentState;
 } Game;
 
+enum Control {
+    SPACEBAR = 0x29,
+    ESC = 0x76,
+    W = 0x1D,
+    A = 0x1C,
+    S = 0x1B,
+    D = 0x23,
+    UP = 0x75,
+    DOWN = 0x72,
+    LEFT = 0x6B,
+    RIGHT = 0x74,
+}; 
+
 /* PS2 Functions Prototypes */
-void PS2_ISR();
-void PS2_init();
+void read_keyboard(unsigned char *byte1, unsigned char *byte2, unsigned char *byte3);
 
 /* VGA Graphics Functions Prototypes */
 void plot_pixel(int x, int y, short int color);
@@ -107,22 +119,43 @@ int main(void) {
     Game game;
     initializeGame(&game);
 
+    bool stateLoaded; // prevent the game state and initial background from being reloaded every frame
+
     // Initialize the PS2
-    PS2_init();
+    unsigned char pressedKey = 0;
+    *(PS2_ptr) = 0xFF; // reset the PS/2 port
 
     // Main game loop
     while (!game.isGameOver) {
+        // Read the keyboard
+        read_keyboard(&byte1, &byte2, &byte3);
+        pressedKey = byte3;
+
         switch (game.currentState) {
             case INITIALIZING:
-                printf("Game initialized\n");
-                draw_image(basketblitz, (Position){0, 0}, 320, 240);
-                if (spacebarPressed) {
+                stateLoaded = false; 
+                
+                if (!stateLoaded) {
+                    // Load the game state
+                    printf("Game initialized\n");
+                    draw_image(basketblitz, (Position){0, 0}, 320, 240);
+                    stateLoaded = true;
+                }
+                
+                if (pressedKey == SPACEBAR) {
                     game.currentState = PLAYING;
-                    spacebarPressed = false;
                 }
                 break;
+            
             case PLAYING:
-                printf("Game started\n");
+                stateLoaded = false;
+
+                if (!stateLoaded) {
+                    // Load the game state
+                    printf("Game playing\n");
+                    clear_screen();
+                    stateLoaded = true;
+                }
                 // Update the game
                 updateGame(&game, 1); // Update the game every 1 ms
 
@@ -130,7 +163,9 @@ int main(void) {
                     game.currentState = GAME_OVER;
                 }
                 break;
+            
             case GAME_OVER:
+                stateLoaded = false;
                 game.currentState = INITIALIZING; // Restart the game
                 break;
         }
@@ -146,25 +181,22 @@ int main(void) {
 /*                              PS2 subroutines                               */
 /* -------------------------------------------------------------------------- */
 
-void PS2_ISR() {
+void read_keyboard(unsigned char *byte1, unsigned char *byte2, unsigned char *byte3) {
     int PS2_data, RVALID;
-    PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
-    RVALID = PS2_data & 0x8000;  // extract the RVALID field
-    if (RVALID != 0) {
-        /* always save the last three bytes received */
-        PS2_data = PS2_data & 0xFF;  // the least significant byte is the last byte received
-        // PS2_data = PS2_data & 0xFF00; // the most significant byte is the first byte received
 
-        // Spacebar
-        if (PS2_data == 0x20) {
-            spacebarPressed = true;
-        }
-    }
-}
-
-void PS2_init() {
-    *(PS2_ptr) = 0xFF; // reset
-    *(PS2_ptr + 1) = 1;  // write to the PS/2 Control register to enable interrupts
+    // PS/2 mouse needs to be reset (must be already plugged in)
+	PS2_data = *(PS2_ptr); // read the Data register in the PS/2 port
+	RVALID = PS2_data & 0x8000; // extract the RVALID field
+	if (RVALID) {
+		/* shift the next data byte into the display */
+		*byte1 = *byte2;
+		*byte2 = *byte3;
+		*byte3 = PS2_data & 0xFF;
+		//HEX_PS2(byte1, byte2, byte3);
+		if ((*byte2 == (char)0xAA) && (*byte3 == (char)0x00))
+			// mouse inserted; initialize sending of data
+			*(PS2_ptr) = 0xF4;
+	}
 }
 
 /* -------------------------------------------------------------------------- */
