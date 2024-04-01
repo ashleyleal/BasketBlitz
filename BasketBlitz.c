@@ -11,6 +11,8 @@
 #include <string.h>
 #include <math.h>
 
+// Need to manually include on Monitor program 
+
 /* Constants */
 #define GRAVITY 9.81
 #define BASKETBALL_RADIUS 20
@@ -23,12 +25,16 @@ short int Buffer1[240][512];
 short int Buffer2[240][512];
 volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
 
+/* Timer Parameters */
+volatile int *timer_ptr = (int *)0xFF202000;
+
 /* PS2 Parameters */
 volatile int *PS2_ptr = (int *)0xFF200100;
 unsigned char byte1 = 0, byte2 = 0, byte3 = 0;
 
 /* Image Arrays */
 const unsigned short basketblitz[];
+const unsigned short basketballhoop[];
 
 /* Structs */
 typedef struct {
@@ -68,6 +74,7 @@ typedef struct {
     Basketball currentBall;
     Player player1;
     Player player2;
+    Timer timer;
     int currentTime;
     int maxTime;
     int currentRound;
@@ -89,6 +96,17 @@ enum Control {
     LEFT = 0x6B,
     RIGHT = 0x74,
 };
+
+typedef volatile struct {
+    int timer_status;   // read only, 2 bits (any write to clear TO)
+    int timer_control;  // write/readable, 4 bits
+    int timer_periodl;  // write/readable, 16 bits
+    int timer_periodh;  // write/readable, 16 bits
+    int timer_snapl;    // read only, 16 bits
+    int timer_snaph;    // read only, 16 bits
+} Timer;
+
+/* Timer Functions Prototypes */
 
 /* PS2 Functions Prototypes */
 void read_keyboard(unsigned char *byte1, unsigned char *byte2, unsigned char *byte3);
@@ -183,21 +201,22 @@ void updateState(Game *game, unsigned char pressedKey) {
             printf("Game playing\n");
 
             draw_basketball(&game->currentBall, 0xFFFF, true);
+            draw_image(basketballhoop, (Position){X_DIM - 50, Y_DIM - 50}, 79, 86); // Draw basketball hoop
 
             // Transition to the game over state when the game is over
             if (pressedKey == ESC || game->currentTime >= game->maxTime || game->currentRound >= game->maxRounds) {
                 game->currentState = GAME_OVER;
             
-            } else if (pressedKey == W) {
+            } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM) {
                 game->currentBall.currentPos.y += 5;
             }
-            else if (pressedKey == S) {
+            else if (pressedKey == S && game->currentBall.currentPos.y > 0) {
                 game->currentBall.currentPos.y -= 5;
             }
-            else if (pressedKey == A) {
+            else if (pressedKey == A && game->currentBall.currentPos.x > 0) {
                 game->currentBall.currentPos.x -= 5;
             }
-            else if (pressedKey == D) {
+            else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM) {
                 game->currentBall.currentPos.x += 5;
             }
 
@@ -222,6 +241,7 @@ void updateState(Game *game, unsigned char pressedKey) {
             break;
     }
     clearKeyboardBuffer(); // Prevents the game from registering multiple key presses and overflowing the buffer
+    // Note bufer overflow is not a problem on the DE1-SoC, but it is good practice to clear the buffer
 }
 
 /* -------------------------------------------------------------------------- */
@@ -251,6 +271,12 @@ void clearKeyboardBuffer() {
     byte2 = 0;
     byte3 = 0;
 }
+
+/* -------------------------------------------------------------------------- */
+/*                           Timer subroutines                                */
+/* -------------------------------------------------------------------------- */
+// https://faculty-web.msoe.edu/barnekow/includes/nios_timer.pdf
+
 
 /* -------------------------------------------------------------------------- */
 /*                       VGA Graphics subroutines                             */
@@ -348,11 +374,11 @@ void draw_box(int x, int y, short int color) {
 void drawProjectile(Basketball *ball){
     
 	// set the initial postion to the ball's position
-	int x = test_ball.currentPos.x;
-	int y = test_ball.currentPos.y;
+	int x = ball->currentPos.x;
+	int y = ball->currentPos.y;
 	// set the initial velocity of the ball
-	int dx = test_ball.currentVel.x;
-	int dy = test_ball.currentVel.y;
+	int dx = ball->currentVel.x;
+	int dy = ball->currentVel.y;
 	
 	// draw 7 positions in the projectile path
 	for (int deltaTime = x; deltaTime <= 0; deltaTime - 6){
