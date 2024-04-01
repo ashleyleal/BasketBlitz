@@ -80,9 +80,9 @@ typedef struct {
 enum Control {
     SPACEBAR = 0x29,
     ESC = 0x76,
-    W = 0x1D,
+    W = 0x1B,
     A = 0x1C,
-    S = 0x1B,
+    S = 0x1D,
     D = 0x23,
     UP = 0x75,
     DOWN = 0x72,
@@ -102,6 +102,7 @@ void wait_for_vsync();
 void draw_image(const unsigned short image[], Position pos, int width, int height);
 void draw_basketball(Basketball *ball, short int color, bool fill);
 void draw_box(int x, int y, short int color);
+void drawProjectile(Basketball *ball);
 
 /* Game Logic Functions Prototypes */
 void initializeGame(Game *game);
@@ -342,6 +343,30 @@ void draw_box(int x, int y, short int color) {
             plot_pixel(x + i, y + j, color);
         }
     }
+}
+
+void drawProjectile(Basketball *ball){
+    
+	// set the initial postion to the ball's position
+	int x = test_ball.currentPos.x;
+	int y = test_ball.currentPos.y;
+	// set the initial velocity of the ball
+	int dx = test_ball.currentVel.x;
+	int dy = test_ball.currentVel.y;
+	
+	// draw 7 positions in the projectile path
+	for (int deltaTime = x; deltaTime <= 0; deltaTime - 6){
+    	// Update the position of the basketball
+    	x += dx * deltaTime; // x = v0t
+    	y += dy * deltaTime - (0.5 * GRAVITY) * deltaTime * deltaTime; // y = v0t - 0.5gt^2
+
+    	// Update the velocity of the basketball
+    	// x velocity remains constant
+    	dy -= GRAVITY * deltaTime; // v = v0 - gt
+		
+		// draw a white box
+		draw_box(x, y, 0xFFFF);
+	}
 }
 
 /* -------------------------------------------------------------------------- */
