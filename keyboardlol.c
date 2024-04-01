@@ -157,7 +157,7 @@ void swap(int* point1, int* point2){
 	*point2 = temp;
 }
 
-void drawProjectile(float angle){
+void drawProjectile(Basketball *ball){
     
 	// set the initial postion to the ball's position
 	int x = test_ball.currentPos.x;
@@ -178,7 +178,6 @@ void drawProjectile(float angle){
 		
 		// draw a white box
 		draw_box(x, y, 0xFFFF);
-		
 	}
 }
 
