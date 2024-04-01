@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
 
 /* Constants */
 #define GRAVITY 9.81
