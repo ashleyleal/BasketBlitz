@@ -1,4 +1,4 @@
-// Sample code for hardware timer 1 second delay
+// Sample code for hardware timer 1 second delay that uses polling
 
 void waitASec();
 
