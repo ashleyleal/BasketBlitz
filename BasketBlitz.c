@@ -18,16 +18,13 @@
 #define BASKETBALL_RADIUS 20
 #define X_DIM 320
 #define Y_DIM 240
-#define TIMERSEC 100000000
+#define TIMERSEC 100000000 // 1 second
 
 /* VGA Display Parameters */
 volatile int pixel_buffer_start;
 short int Buffer1[240][512];
 short int Buffer2[240][512];
 volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
-
-/* Timer Parameters */
-volatile int *timer_ptr = (int *)0xFF202000;
 
 /* PS2 Parameters */
 volatile int *PS2_ptr = (int *)0xFF200100;
@@ -70,6 +67,7 @@ typedef enum {
     NONE
 } GameState;
 
+/* Timer Struct */
 typedef volatile struct {
     int status;   // read only, 2 bits (any write to clear TO)
     int control;  // write/readable, 4 bits
@@ -78,13 +76,13 @@ typedef volatile struct {
     int snapl;    // read only, 16 bits; contains lower 16 bits of the counter value
     int snaph;    // read only, 16 bits; contains higher 16 bits of the counter value
 } Timer;
+Timer *timer = (Timer*) 0xFF202000;
 
 typedef struct {
     Player currentTurn;
     Basketball currentBall;
     Player player1;
     Player player2;
-    Timer timer;
     int currentTime;
     int maxTime;
     int currentRound;
@@ -108,7 +106,7 @@ enum Control {
 };
 
 /* Timer Functions Prototypes */
-void waitASec(Timer *timer);
+void waitASec();
 
 /* PS2 Functions Prototypes */
 void read_keyboard(unsigned char *byte1, unsigned char *byte2, unsigned char *byte3);
@@ -216,7 +214,7 @@ void updateState(Game *game, unsigned char pressedKey) {
                 game->currentBall.currentPos.x += 5;
             }
 
-            updateGame(game, 0);  // one second passes between each cycle, need to add timer
+            updateGame(game, 0);  // one second passes between each cycle
 
             break;
 
@@ -238,7 +236,7 @@ void updateState(Game *game, unsigned char pressedKey) {
     }
     clearKeyboardBuffer();  // Prevents the game from registering multiple key presses and overflowing the buffer
     // Note bufer overflow is not a problem on the DE1-SoC, but it is good practice to clear the buffer
-    // waitASec(&game->timer);  // Wait a second before updating the game state
+    waitASec();  // Wait a second before updating the game state
 }
 
 /* -------------------------------------------------------------------------- */
@@ -281,20 +279,16 @@ void clearKeyboardBuffer() {
 //     timer->periodh = 0x0;  // set the higher 16 bits of the time interval
 // }
 
-void waitASec(Timer *timer) {
-    timer->control = 0x8;  // stop timer
-    timer->status = 0x0;   // clear TO bit
 
-    // Load the time delay
-    timer->periodl = (TIMERSEC & 0x0000FFFF);
-    timer->periodh = (TIMERSEC & 0xFFFF0000) >> 16;
-    timer->control = 0x4;  // start timer
-
-    // Poll the TO bit
-    while ((timer->status & 0x1) == 0) {  // wait for timer to expire
-    }
-    timer->status = 0x0;  // clear TO bit
-    printf("A second has passed\n");
+void waitASec() {
+       timer->control = 0x8; // stop the timer
+       timer->status = 0; // reset TO
+       timer->periodl = (TIMERSEC & 0x0000FFFF);
+       timer->periodh = (TIMERSEC & 0xFFFF0000) >> 16;
+       timer->control = 0x4;
+       while ((timer->status & 0x1) == 0);
+       timer->status = 0; // reset TO
+       printf("1 second has passed\n");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -445,11 +439,6 @@ void initializeGame(Game *game) {
     game->isGameOver = false;
     game->currentState = INITIALIZING;
     game->previousState = NONE;
-
-    // make a new timer at the timer address
-    Timer timer;
-    game->timer = timer;
-    // initializeTimer(&game->timer);
 }
 
 void updateBasketball(Basketball *ball, int deltaTime) {
