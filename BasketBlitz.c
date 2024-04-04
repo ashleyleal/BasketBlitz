@@ -371,7 +371,9 @@ int main(void) {
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
     volatile int *PS2_ptr = (int *)PS2_BASE;               // PS/2 port address
 
-    *(interval_timer_ptr + 1) = 0x7;  // STOP = 0, START = 1, CONT = 1, ITO = 1
+    // *(interval_timer_ptr + 1) = 0x7;  // STOP = 0, START = 1, CONT = 1, ITO = 1
+    // stop timer until game starts
+    *(interval_timer_ptr + 1) = 0x0;  // STOP = 0, START = 0, CONT = 0, ITO = 0
     *(PS2_ptr + 8) = 0x1;             // enable interrupts for PS/2 port
 
     // enable interrupts for levels 0, 1, and 7
@@ -453,24 +455,11 @@ void ps2_ISR(Game *game) {
         byte1 = byte2;
         byte2 = byte3;
         byte3 = PS2_data & 0xFF;
-        if (byte2 == 0xF0)  // key release
-        {
-            if (byte3 == W)  // left arrow key
-                printf("W released\n");
-                pressedKey = W;
-            if (byte3 == A)  // right arrow key
-                printf("A released\n");
-                pressedKey = A;
-            if (byte3 == S)  // up arrow key
-                printf("S released\n");
-                pressedKey = S;
-            if (byte3 == D)  // down arrow key
-                printf("D released\n");
-                pressedKey = D;
-            if (byte3 == SPACEBAR)  // spacebar
-                printf("Spacebar released\n");
-                pressedKey = SPACEBAR;
-        }
+
+        // find the key that was pressed
+        pressedKey = byte3;
+    } else {
+        pressedKey = 0;
     }
 
     return;
@@ -483,6 +472,7 @@ void ps2_ISR(Game *game) {
 
 // Update the game state based on the current state and set initial screen for each state
 void updateState(Game *game) {
+    volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
     game->previousState = game->currentState;  // Save the previous state
     clear_screen();                            // Clear the screen
 
