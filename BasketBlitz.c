@@ -127,6 +127,7 @@ volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
 /* PS2 Parameters */
 volatile int *PS2_ptr = (int *)0xFF200100;
 unsigned char byte1 = 0, byte2 = 0, byte3 = 0;
+unsigned char pressedKey = 0;
 
 /* Image Arrays */
 const unsigned short basketblitz[];
@@ -189,6 +190,7 @@ typedef struct {
     GameState currentState;
     GameState previousState;
 } Game;
+Game game;
 
 enum Control {
     SPACEBAR = 0x29,
@@ -207,7 +209,8 @@ int main(void);
 
 /* Interrupts Prototypes */
 void interrupt_handler(void);
-void interval_timer_ISR(void);
+void interval_timer_ISR(Game *game);
+void ps2_ISR(Game *game);
 
 /* The assembly language code below handles CPU reset processing */
 void the_reset(void) __attribute__((section(".reset")));
@@ -319,6 +322,7 @@ void the_exception(void)
 
 /* Timer Functions Prototypes */
 void waitASec(); // Uses polling to wait for 1 second
+void initializeTimer(Timer *timer); // Initializes the timer to count 1 second
 
 /* PS2 Functions Prototypes */
 void read_keyboard(unsigned char *byte1, unsigned char *byte2, unsigned char *byte3);
@@ -340,9 +344,11 @@ void updateBasketball(Basketball *ball, int deltaTime);
 void updateGame(Game *game, int deltaTime);
 
 /* FSM Functions Prototypes */
-void updateState(Game *game, unsigned char pressedKey);
+void updateState(Game *game);
 
 int main(void) {
+
+    /****************** VGA SETUP ******************/
     /* set front pixel buffer to Buffer 1 */
     *(pixel_ctrl_ptr + 1) = (int)&Buffer1;  // first store the address in the  back buffer
     /* now, swap the front/back buffers, to set the front buffer location */
@@ -355,9 +361,25 @@ int main(void) {
     *(pixel_ctrl_ptr + 1) = (int)&Buffer2;
     pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // we draw on the back buffer
     clear_screen();                              // pixel_buffer_start points to the pixel buffer
+    /*************************************************/
+
+    /****************** TIMER SETUP ******************/
+    initializeTimer(timer);  // Initialize the timer to count 1 second
+    /*************************************************/
+
+    /****************** INTERRUPTS SETUP ******************/
+    volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
+    volatile int *PS2_ptr = (int *)PS2_BASE;               // PS/2 port address
+
+    *(interval_timer_ptr + 1) = 0x7;  // STOP = 0, START = 1, CONT = 1, ITO = 1
+    *(PS2_ptr + 8) = 0x1;             // enable interrupts for PS/2 port
+
+    // enable interrupts for levels 0, 1, and 7
+    NIOS2_WRITE_IENABLE(0x83);
+    NIOS2_WRITE_STATUS(1);  // enable Nios II interrupts
+    /******************************************************/
 
     // Initialize the game
-    Game game;
     initializeGame(&game);
 
     // Initialize the PS2
@@ -368,11 +390,11 @@ int main(void) {
     // Main game loop
     while (1) {
         // Read the keyboard
-        read_keyboard(&byte1, &byte2, &byte3);
-        pressedKey = byte3;
+        // read_keyboard(&byte1, &byte2, &byte3);
+        // pressedKey = byte3;
 
         // Update the game state
-        updateState(&game, pressedKey);
+        updateState(&game);
 
         wait_for_vsync();                            // Swap buffers
         pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // Back buffer
@@ -398,45 +420,76 @@ void interrupt_handler(void) {
     NIOS2_READ_IPENDING(ipending);
     if (ipending & 0x1)  // interval timer is interrupt level 0
     {
-        interval_timer_ISR();
+        interval_timer_ISR(&game);
     }
-    // if (ipending & 0x2)  // pushbuttons are interrupt level 1
-    // {
-    //     pushbutton_ISR();
-    // }
+    if (ipending & 0x7) // PS/2 is interrupt level 7
+    {
+        ps2_ISR(&game);
+    }
     // else, ignore the interrupt
     return;
 }
 
 
-void interval_timer_ISR() {
+void interval_timer_ISR(Game *game) {
+    printf("Current time: %d\n", game->currentTime);
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;
     *(interval_timer_ptr) = 0;                 // clear the interrupt
-    // do stuff
+    game->currentTime += 1;                    // increment the time
     return;
 }
 
-void ps2_ISR() {
+void ps2_ISR(Game *game) {
     volatile int *PS2_ptr = (int *)PS2_BASE;
-    
+    int PS2_data, RVALID;
+    PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
 
-    // do stuff
+    // clear the interrupt
+    *(PS2_ptr + 1) = 0;
+
+    RVALID = PS2_data & 0x8000;  // extract the RVALID field
+    if (RVALID) {
+        /* shift the next data byte into the display */
+        byte1 = byte2;
+        byte2 = byte3;
+        byte3 = PS2_data & 0xFF;
+        if (byte2 == 0xF0)  // key release
+        {
+            if (byte3 == W)  // left arrow key
+                printf("W released\n");
+                pressedKey = W;
+            if (byte3 == A)  // right arrow key
+                printf("A released\n");
+                pressedKey = A;
+            if (byte3 == S)  // up arrow key
+                printf("S released\n");
+                pressedKey = S;
+            if (byte3 == D)  // down arrow key
+                printf("D released\n");
+                pressedKey = D;
+            if (byte3 == SPACEBAR)  // spacebar
+                printf("Spacebar released\n");
+                pressedKey = SPACEBAR;
+        }
+    }
+
     return;
 }
+
 
 /* -------------------------------------------------------------------------- */
 /*                                 FSM                                        */
 /* -------------------------------------------------------------------------- */
 
 // Update the game state based on the current state and set initial screen for each state
-void updateState(Game *game, unsigned char pressedKey) {
+void updateState(Game *game) {
     game->previousState = game->currentState;  // Save the previous state
     clear_screen();                            // Clear the screen
 
     switch (game->currentState) {
         case INITIALIZING:
 
-            printf("Game initialized\n");
+            // printf("Game initialized\n");
 
             draw_image(basketblitz, (Position){0, 0}, 320, 240);
 
@@ -449,7 +502,7 @@ void updateState(Game *game, unsigned char pressedKey) {
 
         case PLAYING:
 
-            printf("Game playing\n");
+            // printf("Game playing\n");
 
             draw_basketball(&game->currentBall, 0xFFFF, true);
             draw_image(basketballhoop, (Position){X_DIM - 50, Y_DIM - 50}, 79, 86);  // Draw basketball hoop
@@ -474,7 +527,7 @@ void updateState(Game *game, unsigned char pressedKey) {
 
         case GAME_OVER:
 
-            printf("Game over\n");
+            // printf("Game over\n");
 
             draw_box(100, 100, 0xFFFF);
 
@@ -490,7 +543,7 @@ void updateState(Game *game, unsigned char pressedKey) {
     }
     clearKeyboardBuffer();  // Prevents the game from registering multiple key presses and overflowing the buffer
     // Note bufer overflow is not a problem on the DE1-SoC, but it is good practice to clear the buffer
-    waitASec();  // Wait a second before updating the game state
+    // waitASec();  // Wait a second before updating the game state
 }
 
 /* -------------------------------------------------------------------------- */
@@ -526,14 +579,16 @@ void clearKeyboardBuffer() {
 /* -------------------------------------------------------------------------- */
 // https://faculty-web.msoe.edu/barnekow/includes/nios_timer.pdf
 
-// void initializeTimer(Timer *timer) {
-//     timer->control = 0x0;  // stop timer
-//     timer->status = 0x0;   // clear TO bit
-//     timer->periodl = 0x0;  // set the lower 16 bits of the time interval
-//     timer->periodh = 0x0;  // set the higher 16 bits of the time interval
-// }
 
+// Function to initialize the timer to count 1 second
+void initializeTimer(Timer *timer) {
+    timer->control = 0x0;  // stop timer
+    timer->status = 0x0;   // clear TO bit
+    timer->periodl = (TIMERSEC & 0x0000FFFF);
+    timer->periodh = (TIMERSEC & 0xFFFF0000) >> 16;
+}
 
+// Function to wait for 1 second using polling
 void waitASec() {
        timer->control = 0x8; // stop the timer
        timer->status = 0; // reset TO
