@@ -116,6 +116,9 @@
 #define BASKETBALL_RADIUS 10
 #define X_DIM 320
 #define Y_DIM 240
+#define MAX_ANGLE M_PI/2
+#define MIN_ANGLE (-1)*M_PI/2
+#define halfRadian 0.05
 #define TIMERSEC 100000000 // 1 second
 
 /* VGA Display Parameters */
@@ -128,6 +131,7 @@ volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
 volatile int *PS2_ptr = (int *)0xFF200100;
 unsigned char byte1 = 0, byte2 = 0, byte3 = 0;
 unsigned char pressedKey = 0;
+bool keyPressed = false;
 
 /* Image Arrays */
 const unsigned short basketblitz[];
@@ -142,6 +146,7 @@ typedef struct {
 typedef struct {
     int x;
     int y;
+	int v0;
 } Velocity;
 
 typedef struct {
@@ -153,6 +158,7 @@ typedef struct {
     Position initialPos;
     Position currentPos;
     float startingAngle;
+	float currentAngle;
     Velocity initialVel;
     Velocity currentVel;
     bool isMoving;
@@ -336,12 +342,15 @@ void wait_for_vsync();
 void draw_image(const unsigned short image[], Position pos, int width, int height);
 void draw_basketball(Basketball *ball, short int color, bool fill);
 void draw_box(int x, int y, short int color);
-void drawProjectile(Basketball *ball);
+void drawProjectile(Game *game);
+void draw_line(int start_x, int start_y, int end_x, int end_y, short int color);
+void swap(int* point1, int* point2);
 
 /* Game Logic Functions Prototypes */
 void initializeGame(Game *game);
 void updateBasketball(Basketball *ball, int deltaTime);
 void updateGame(Game *game, int deltaTime);
+void updateVelocity(Basketball *ball);
 
 /* FSM Functions Prototypes */
 void updateState(Game *game);
@@ -372,7 +381,7 @@ int main(void) {
     volatile int *PS2_ptr = (int *)PS2_BASE;               // PS/2 port address
 
     *(interval_timer_ptr + 1) = 0x7;  // STOP = 0, START = 1, CONT = 1, ITO = 1
-    *(PS2_ptr + 8) = 0x1;             // enable interrupts for PS/2 port
+    *(PS2_ptr + 1) = 0x1;             // enable interrupts for PS/2 port
 
     // enable interrupts for levels 0, 1, and 7
     NIOS2_WRITE_IENABLE(0x83);
@@ -389,9 +398,6 @@ int main(void) {
 
     // Main game loop
     while (1) {
-        // Read the keyboard
-        // read_keyboard(&byte1, &byte2, &byte3);
-        // pressedKey = byte3;
 
         // Update the game state
         updateState(&game);
@@ -422,7 +428,7 @@ void interrupt_handler(void) {
     {
         interval_timer_ISR(&game);
     }
-    if (ipending & 0x7) // PS/2 is interrupt level 7
+    if (ipending & 0x80) // PS/2 is interrupt level 7
     {
         ps2_ISR(&game);
     }
@@ -439,34 +445,40 @@ void interval_timer_ISR(Game *game) {
     return;
 }
 
-void ps2_ISR(Game *game) {
-    printf("PS2 interrupt\n");
-    volatile int *PS2_ptr = (int *)PS2_BASE;
-    int PS2_data, RVALID, RAVAIL;
-    PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
 
-    // clear the interrupt
-    *(PS2_ptr + 1) = 0;
+void ps2_ISR(Game *game) {
+    printf("PS2 ISR\n");
+    volatile int *PS2_ptr = (int *)PS2_BASE;
+    int PS2_data, RVALID, RAVAIL, interrupt;
+    PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
+	
+	// read the control register
+	interrupt = *(PS2_ptr + 1); 
+	  
+	//Clear Interrupt 
+	*(PS2_ptr + 1) = interrupt;
 
     RVALID = PS2_data & 0x8000;  // extract the RVALID field
-    RAVAIL = PS2_data & 0xFF00;
-
-    if (RAVAIL <= 0) {
-        printf("Empty\n");
-    }
-
+	RAVAIL = PS2_data & 0xFF0000;  // extract the RAVAIL field
+	
+	if (RAVAIL > 0){
+		printf("keyboard interrupt\n");
+	}
+	
     if (RVALID) {
         /* shift the next data byte into the display */
         byte1 = byte2;
         byte2 = byte3;
         byte3 = PS2_data & 0xFF;
-
+		
         // find the key that was pressed
         pressedKey = byte3;
-    } else {
-        pressedKey = 0;
-    }
-
+		
+		keyPressed = true;
+        } else {
+            pressedKey = 0;
+        }
+	
     return;
 }
 
@@ -477,6 +489,7 @@ void ps2_ISR(Game *game) {
 
 // Update the game state based on the current state and set initial screen for each state
 void updateState(Game *game) {
+	
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
     game->previousState = game->currentState;  // Save the previous state
 
@@ -486,7 +499,6 @@ void updateState(Game *game) {
         case INITIALIZING:
 
             // printf("Game initialized\n");
-
             draw_image(basketblitz, (Position){0, 0}, 320, 240);
 
             // Transition to the playing state when the spacebar is pressed
@@ -498,27 +510,48 @@ void updateState(Game *game) {
             break;
 
         case PLAYING:
-
+			
             // printf("Game playing\n");
-
+			
             draw_basketball(&game->currentBall, 0xFFFF, true);
             draw_image(basketballhoop, (Position){0, 35}, 79, 86);  // Draw basketball hoop
-
+			drawProjectile(game);
+			
             // Transition to the game over state when the game is over
             if (pressedKey == ESC || game->currentTime >= game->maxTime || game->currentRound >= game->maxRounds) {
                 game->currentState = GAME_OVER;
-
-            } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM) {
-                game->currentBall.currentPos.y += 2;
-            } else if (pressedKey == S && game->currentBall.currentPos.y > 0) {
-                game->currentBall.currentPos.y -= 2;
-            } else if (pressedKey == A && game->currentBall.currentPos.x > 0) {
-                game->currentBall.currentPos.x -= 2;
-            } else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM) {
-                game->currentBall.currentPos.x += 2;
-            }
-
-            updateGame(game, 0);  // one second passes between each cycle
+				
+				// release the ball
+			} else if (pressedKey == SPACEBAR) {
+				printf("ball should move\n");
+				//game->currentBall.isMoving = true;
+                
+				// set the ball position
+            } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM && keyPressed) {
+				keyPressed = false;
+                game->currentBall.currentPos.y += 1;
+            } else if (pressedKey == S && game->currentBall.currentPos.y > 0 && keyPressed) {
+				keyPressed = false;
+                game->currentBall.currentPos.y -= 1;
+            } else if (pressedKey == A && game->currentBall.currentPos.x > 0 && keyPressed) {
+				keyPressed = false;
+                game->currentBall.currentPos.x -= 1;
+            } else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM && keyPressed) {
+				keyPressed = false;
+                game->currentBall.currentPos.x += 1;
+				
+				// set the angle of projection
+			} else if (pressedKey == UP && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
+				keyPressed = false;
+				game->currentBall.currentAngle += halfRadian;
+				updateVelocity(&game->currentBall);
+			} else if (pressedKey == DOWN && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
+				keyPressed = false;
+				game->currentBall.currentAngle -= halfRadian;
+				updateVelocity(&game->currentBall);
+			}
+			
+			updateGame(game, 0);  // one second passes between each cycle
 
             break;
 
@@ -543,27 +576,10 @@ void updateState(Game *game) {
     // waitASec();  // Wait a second before updating the game state
 }
 
+
 /* -------------------------------------------------------------------------- */
 /*                              PS2 subroutines                               */
 /* -------------------------------------------------------------------------- */
-
-void read_keyboard(unsigned char *byte1, unsigned char *byte2, unsigned char *byte3) {
-    int PS2_data, RVALID;
-
-    // PS/2 mouse needs to be reset (must be already plugged in)
-    PS2_data = *(PS2_ptr);       // read the Data register in the PS/2 port
-    RVALID = PS2_data & 0x8000;  // extract the RVALID field
-    if (RVALID) {
-        /* shift the next data byte into the display */
-        *byte1 = *byte2;
-        *byte2 = *byte3;
-        *byte3 = PS2_data & 0xFF;
-        // HEX_PS2(byte1, byte2, byte3);
-        if ((*byte2 == (char)0xAA) && (*byte3 == (char)0x00))
-            // mouse inserted; initialize sending of data
-            *(PS2_ptr) = 0xF4;
-    }
-}
 
 void clearKeyboardBuffer() {
     byte1 = 0;
@@ -574,8 +590,6 @@ void clearKeyboardBuffer() {
 /* -------------------------------------------------------------------------- */
 /*                           Timer subroutines                                */
 /* -------------------------------------------------------------------------- */
-// https://faculty-web.msoe.edu/barnekow/includes/nios_timer.pdf
-
 
 // Function to initialize the timer to count 1 second
 void initializeTimer(Timer *timer) {
@@ -700,27 +714,68 @@ void draw_box(int x, int y, short int color) {
     }
 }
 
-void drawProjectile(Basketball *ball) {
-    // set the initial postion to the ball's position
-    int x = ball->currentPos.x;
-    int y = ball->currentPos.y;
-    // set the initial velocity of the ball
-    int dx = ball->currentVel.x;
-    int dy = ball->currentVel.y;
+void drawProjectile(Game *game) {
+    // Set the initial position and velocity of the projectile
+    int x = game->currentBall.currentPos.x;
+    int y = game->currentBall.currentPos.y;
+    int dx = game->currentBall.currentVel.x;
+    int dy = game->currentBall.currentVel.y;
 
-    // draw 7 positions in the projectile path
-    for (int deltaTime = x; deltaTime <= 0; deltaTime - 6) {
-        // Update the position of the basketball
-        x += dx * deltaTime;                                            // x = v0t
-        y += dy * deltaTime - (0.5 * GRAVITY) * deltaTime * deltaTime;  // y = v0t - 0.5gt^2
+    // Calculate the trajectory of the projectile and draw a line
+    for (int t = 0; t <= 100; t++) {  // Assuming a maximum time duration for the projectile
+        // Calculate the new position
+		
+		// divided the time by 10 so we can get more points on the projectile
+        int new_x = x + dx * (t/20);
+        int new_y = y - (dy * (t/20) - (int)(0.5 * GRAVITY * (t/20) * (t/20)));
+		
+		// Check if the new position is within the screen boundaries
+        if (new_x >= 0 && new_x < 320 && new_y >= 0 && new_y < 240) {
+			draw_line(x, y, new_x, new_y, 0xFFFF);
+        }
 
-        // Update the velocity of the basketball
-        // x velocity remains constant
-        dy -= GRAVITY * deltaTime;  // v = v0 - gt
-
-        // draw a white box
-        draw_box(x, y, 0xFFFF);
+        // Update the position and velocity
+        x = new_x;
+        y = new_y;
+        dy -= GRAVITY * (t/20);  // Update the y-velocity due to gravity
     }
+}
+
+void draw_line(int start_x, int start_y, int end_x, int end_y, short int color)
+{
+    //printf("Drawing line from (%d,%d) to (%d,%d) with color: %x\n", start_x, start_y, end_x, end_y, color);
+    bool is_steep = abs(end_y - start_y) > abs(end_x - start_x);
+    if (is_steep){
+        swap(&start_x, &start_y);
+        swap(&end_x, &end_y);
+    }
+    if (end_x < start_x){
+        swap(&start_x, &end_x);
+        swap(&start_y, &end_y);
+    }
+    int delta_x = end_x - start_x;
+    int delta_y = abs(end_y - start_y);
+    int error = -delta_x/2;
+    int y = start_y;
+    int y_step = start_y < end_y ? 1 : -1;
+
+    for (int x = start_x; x <= end_x; x++){
+        if (is_steep)
+            plot_pixel(y, x, color);
+        else
+            plot_pixel(x, y, color);
+        error += delta_y;
+        if (error >= 0){
+            y += y_step;
+            error -= delta_x;
+        }
+    }
+}
+
+void swap(int* point1, int* point2){
+	int temp = *point1;
+	*point1 = *point2;
+	*point2 = temp;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -737,15 +792,17 @@ void initializeGame(Game *game) {
     strcpy(game->player2.name, "Player 2");
 
     // Initialize the basketball
-    game->currentBall.initialPos.x = X_DIM / 2;
-    game->currentBall.initialPos.y = Y_DIM / 2;
-    game->currentBall.currentPos.x = X_DIM / 2;
-    game->currentBall.currentPos.y = Y_DIM / 2;
-    game->currentBall.startingAngle = 0;
-    game->currentBall.initialVel.x = 0;
-    game->currentBall.initialVel.y = 0;
-    game->currentBall.currentVel.x = 0;
-    game->currentBall.currentVel.y = 0;
+    game->currentBall.initialPos.x = 3 * X_DIM / 4;
+    game->currentBall.initialPos.y = 3 * Y_DIM / 4;
+    game->currentBall.currentPos.x = 3 * X_DIM / 4;
+    game->currentBall.currentPos.y = 3 * Y_DIM / 4;
+    game->currentBall.startingAngle = M_PI*(1/4);
+	game->currentBall.initialVel.v0 = 70;
+	game->currentBall.initialVel.x = 70*cos(3*M_PI/4);
+	game->currentBall.initialVel.y = 70*sin(3*M_PI/4);
+	game->currentBall.currentVel.v0 = 70;
+	game->currentBall.currentVel.x = 70*cos(3*M_PI/4);
+	game->currentBall.currentVel.y = 70*sin(3*M_PI/4);
     game->currentBall.isMoving = false;
     game->currentBall.owner = game->player1;
 
@@ -760,6 +817,16 @@ void initializeGame(Game *game) {
     game->previousState = NONE;
 }
 
+void updateVelocity(Basketball *ball) {
+	// get the new angle of the ball
+	float angle = ball->currentAngle;
+	
+	// update the velocity of the ball
+	ball->currentVel.x = ball->currentVel.v0 * cos(angle);
+	ball->currentVel.x = ball->currentVel.v0 * sin(angle);
+	
+}
+
 void updateBasketball(Basketball *ball, int deltaTime) {
     // If the basketball is not moving, do not update its position or velocity
     if (!ball->isMoving) {
@@ -767,11 +834,15 @@ void updateBasketball(Basketball *ball, int deltaTime) {
     }
     // Update the position of the basketball
     ball->currentPos.x += ball->currentVel.x * deltaTime;                                            // x = v0t
-    ball->currentPos.y += ball->currentVel.y * deltaTime - (0.5 * GRAVITY) * deltaTime * deltaTime;  // y = v0t - 0.5gt^2
+    ball->currentPos.y -= ball->currentVel.y * deltaTime - (0.5 * GRAVITY) * deltaTime * deltaTime;  // y = v0t - 0.5gt^2
 
     // Update the velocity of the basketball
     // x velocity remains constant
     ball->currentVel.y -= GRAVITY * deltaTime;  // v = v0 - gt
+	
+	// Update the angle of the basketball
+    // x velocity remains constant
+    ball->currentAngle = atan(ball->currentVel.y/ball->currentVel.x);  // v = v0 - gt
 
     // Check if the basketball has hit the ground
     if (ball->currentPos.y <= 0) {
