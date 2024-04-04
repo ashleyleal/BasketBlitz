@@ -371,9 +371,7 @@ int main(void) {
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
     volatile int *PS2_ptr = (int *)PS2_BASE;               // PS/2 port address
 
-    // *(interval_timer_ptr + 1) = 0x7;  // STOP = 0, START = 1, CONT = 1, ITO = 1
-    // stop timer until game starts
-    *(interval_timer_ptr + 1) = 0x0;  // STOP = 0, START = 0, CONT = 0, ITO = 0
+    *(interval_timer_ptr + 1) = 0x7;  // STOP = 0, START = 1, CONT = 1, ITO = 1
     *(PS2_ptr + 8) = 0x1;             // enable interrupts for PS/2 port
 
     // enable interrupts for levels 0, 1, and 7
@@ -442,14 +440,21 @@ void interval_timer_ISR(Game *game) {
 }
 
 void ps2_ISR(Game *game) {
+    printf("PS2 interrupt\n");
     volatile int *PS2_ptr = (int *)PS2_BASE;
-    int PS2_data, RVALID;
+    int PS2_data, RVALID, RAVAIL;
     PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
 
     // clear the interrupt
     *(PS2_ptr + 1) = 0;
 
     RVALID = PS2_data & 0x8000;  // extract the RVALID field
+    RAVAIL = PS2_data & 0xFF00;
+
+    if (RAVAIL <= 0) {
+        printf("Empty\n");
+    }
+
     if (RVALID) {
         /* shift the next data byte into the display */
         byte1 = byte2;
@@ -495,7 +500,7 @@ void updateState(Game *game) {
             // printf("Game playing\n");
 
             draw_basketball(&game->currentBall, 0xFFFF, true);
-            draw_image(basketballhoop, (Position){X_DIM - 50, Y_DIM - 50}, 79, 86);  // Draw basketball hoop
+            draw_image(basketballhoop, (Position){0, 35}, 79, 86);  // Draw basketball hoop
 
             // Transition to the game over state when the game is over
             if (pressedKey == ESC || game->currentTime >= game->maxTime || game->currentRound >= game->maxRounds) {
@@ -604,7 +609,7 @@ void clear_screen() {
     int x, y;
     for (x = 0; x < 320; x++)
         for (y = 0; y < 240; y++)
-            plot_pixel(x, y, 0x0000);  // clear pixel at (x, y)
+            plot_pixel(x, y, 0x0);  // clear pixel at (x, y)
 }
 
 void wait_for_vsync() {
@@ -645,7 +650,9 @@ void draw_image(const unsigned short image[], Position pos, int width, int heigh
     int x, y;
     for (x = 0; x < width; x++) {
         for (y = 0; y < height; y++) {
-            plot_pixel(x + pos.x, y + pos.y, image[y * 320 + x]);
+            if (image[y * width + x] != 0x0) {
+                plot_pixel(x + pos.x, y + pos.y, image[y * width + x]);
+            }
         }
     }
 }
