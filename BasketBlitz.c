@@ -113,7 +113,7 @@
 
 /* Constants */
 #define GRAVITY 9.81
-#define BASKETBALL_RADIUS 20
+#define BASKETBALL_RADIUS 10
 #define X_DIM 320
 #define Y_DIM 240
 #define TIMERSEC 100000000 // 1 second
@@ -479,8 +479,9 @@ void ps2_ISR(Game *game) {
 void updateState(Game *game) {
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
     game->previousState = game->currentState;  // Save the previous state
-    clear_screen();                            // Clear the screen
 
+    clear_screen();  // Clear the screen, will remove this later to imrpove performance
+                               
     switch (game->currentState) {
         case INITIALIZING:
 
@@ -491,6 +492,7 @@ void updateState(Game *game) {
             // Transition to the playing state when the spacebar is pressed
             if (pressedKey == SPACEBAR) {
                 game->currentState = PLAYING;
+                clear_screen(); 
             }
 
             break;
@@ -507,13 +509,13 @@ void updateState(Game *game) {
                 game->currentState = GAME_OVER;
 
             } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM) {
-                game->currentBall.currentPos.y += 5;
+                game->currentBall.currentPos.y += 2;
             } else if (pressedKey == S && game->currentBall.currentPos.y > 0) {
-                game->currentBall.currentPos.y -= 5;
+                game->currentBall.currentPos.y -= 2;
             } else if (pressedKey == A && game->currentBall.currentPos.x > 0) {
-                game->currentBall.currentPos.x -= 5;
+                game->currentBall.currentPos.x -= 2;
             } else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM) {
-                game->currentBall.currentPos.x += 5;
+                game->currentBall.currentPos.x += 2;
             }
 
             updateGame(game, 0);  // one second passes between each cycle
@@ -635,12 +637,23 @@ void draw_basketball(Basketball *ball, short int color, bool fill) {
         int y1 = y0 + sqrt(radius * radius - x * x);
         int y2 = y0 - sqrt(radius * radius - x * x);
 
-        plot_pixel(x0 + x, y0 + y1, color);
-        plot_pixel(x0 + x, y0 + y2, color);
+        int new_x = x0 + x;
+        int new_y1 = y0 + y1;
+        int new_y2 = y0 + y2;
+
+        // if (new_x >= 0 && new_x < X_DIM && new_y1 >= 0 && new_y1 < Y_DIM) {
+        //     plot_pixel(new_x, new_y1, color);
+        // }
+        // if (new_x >= 0 && new_x < X_DIM && new_y2 >= 0 && new_y2 < Y_DIM) {
+        //     plot_pixel(new_x, new_y2, color);
+        // }
+
         // Draw horizontal lines between the upper and lower halves of the circle
         if (fill) {
             for (int y = y2 + 1; y < y1; y++) {
-                plot_pixel(x0 + x, y, color);
+                if (x0 + x >= 0 && x0 + x < X_DIM && y >= 0 && y < Y_DIM) {
+                    plot_pixel(x0 + x, y, color);
+                }
             }
         }
     }
@@ -739,7 +752,7 @@ void initializeGame(Game *game) {
     // Initialize the game
     game->currentTurn = game->player1;
     game->currentTime = 0;
-    game->maxTime = 120;
+    game->maxTime = 60;
     game->currentRound = 1;
     game->maxRounds = 3;
     game->isGameOver = false;
