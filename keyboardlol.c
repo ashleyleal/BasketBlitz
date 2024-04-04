@@ -233,4 +233,3 @@ void wait_for_vsync(){
 	// polling loop waiting for S bit to go to 0
 	while ((*s_bit & 0x1) != 0);
 }
-
