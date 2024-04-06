@@ -113,7 +113,7 @@
 
 /* Constants */
 #define GRAVITY 9.81
-#define BASKETBALL_RADIUS 10
+#define BASKETBALL_RADIUS 8
 #define X_DIM 320
 #define Y_DIM 240
 #define MAX_ANGLE M_PI  // 3rd quadrant ends
@@ -1066,6 +1066,10 @@ void initializeGame(Game *game) {
     game->hoop.initialPos.y = 29;
     game->hoop.currentPos.x = 0;
     game->hoop.currentPos.y = 29;
+    game->hoop.ringStartPos.x = 57;
+    game->hoop.ringStartPos.y = 89;
+    game->hoop.ringEndPos.x = 89;
+    game->hoop.ringEndPos.y = 89;
 //    game->hoop.mass = 45.0; // mass in kgs
 
     // Initialize the game
