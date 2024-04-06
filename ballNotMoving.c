@@ -386,7 +386,7 @@ void initializeRound2(Game *game);
 
 /*Game Logic helper Prototypes*/
 void setLowerBounds(Basketball *ball);
-bool isItTouchingRing(Basketball *ball, int x, int y);
+bool isItTouchingRing(Basketball ball, int x, int y);
 void updateReboundVel(Basketball *ball, bool hitRing);
 void updateVelocity(Basketball *ball);
 
@@ -571,7 +571,7 @@ void updateState(Game *game) {
             // printf("Round 1 Playing\n");
 
             // print the score of the current player
-            printf("player %d score is: %d \n", game->currentRound.roundNumber, &game->currentRound.playerTurn.score);
+            printf("player %d score is: %d \n", game->currentRound.roundNumber, game->currentRound.playerTurn.score);
 
             draw_basketball(&game->currentBall, 0xFFFF, true);
             draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
@@ -788,7 +788,7 @@ void draw_basketball(Basketball *ball, short int color, bool fill) {
     int radius = BASKETBALL_RADIUS;
 
     // center of ball is its position
-    for (int x = -radius, bounds = 0; x <= radius; x++, bounds++) {
+    for (int x = -radius; x <= radius; x++) {
         int y1 = y0 + sqrt(radius * radius - x * x);
         int y2 = y0 - sqrt(radius * radius - x * x);
         
@@ -991,7 +991,7 @@ void initializeGame(Game *game) {
     game->currentState = INITIALIZING;
     game->previousState = NONE;
     game->currentRound = (Round){0, game->player1, 0, 0, true};
-    game->currentRound.playerTurn.score = 0;
+    // game->currentRound.playerTurn.score = 0;
 }
 
 void updateVelocity(Basketball *ball) {
@@ -1013,12 +1013,12 @@ void updateReboundVel(Basketball *ball, bool hitRing) {
     ball->currentVel.x = (-1)* ball->currentVel.x;
 }
 
-bool isItTouchingRing(Basketball *ball, int x, int y) {
+bool isItTouchingRing(Basketball ball, int x, int y) {
     // is the lower half of the ball touching the ring?
     bool touching = false;
     
     for (int index = 0; index < 2*BASKETBALL_RADIUS; index++) {
-        if ((&ball->lowerBounds[index].x == x) && (&ball->lowerBounds[index].y == y)) {
+        if ((ball.lowerBounds[index].x == x) && (ball.lowerBounds[index].y == y)) {
             return true;
         }
     }
@@ -1026,6 +1026,7 @@ bool isItTouchingRing(Basketball *ball, int x, int y) {
 }
 
 void setLowerBounds(Basketball *ball) {
+    // set the lower bounds of the current basketball
     int x0 = ball->currentPos.x;
     int y0 = ball->currentPos.y;
 
@@ -1047,34 +1048,28 @@ void updateBasketball(Basketball *ball) {
         return;
     }
 
-    // if ball hits the board frame then bounce it off using momentum
-    if ((ball->currentPos.x - 10) <= 38 && (ball->currentPos.y + 10) <= 99 && (ball->currentPos.y - 10) >= 35) {
-        // conservation of momentum: assuming elastic collision (no drag / air resistance)
-        // m1u1 + m2u2 = m1v1 + m2v2
-        // u2 = 0, v2 = 0
-        updateReboundVel(ball, false);
-        printf("rebounded from frame.\n");
-    
-    // check if the ball hit the ring
-    } else if (isItTouchingRing(ball, game.hoop.ringStartPos.x, game.hoop.ringStartPos.y) || isItTouchingRing(ball, game.hoop.ringEndPos.x, game.hoop.ringEndPos.y)) {
-        updateReboundVel(ball, true);
-        printf("rebounded from ring.\n");
-
-    // increment score if the ball passses the ring, check if the vertical velocity component is downwards
-    } else if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) && (ball->currentPos.y == game.hoop.ringStartPos.y) && (ball->currentVel.y < 0)) {
-        game.currentRound.playerTurn.score++;
-        printf("SCORED!\n");
-    }
-
-	int deltaTime = ball->projTime;
+    int deltaTime = ball->projTime;
 	
-    int new_x = ball->currentPos.x + ball->currentVel.x * (deltaTime/20);   // x = v0t
-    int new_y = ball->currentPos.y - ball->currentVel.y * (deltaTime/20) - (0.5 * GRAVITY) * (deltaTime/20) * (deltaTime/20);  // y = v0t - 0.5gt^2
+    int new_x = ball->currentPos.x + ball->currentVel.x * deltaTime;   // x = v0t
+    int new_y = ball->currentPos.y - ball->currentVel.y * deltaTime - (0.5 * GRAVITY) * deltaTime * deltaTime;  // y = v0t - 0.5gt^2
 
-    int new_dy = ball->currentVel.y - GRAVITY * (deltaTime/20);  // v = v0 - gt
+    int new_dy = ball->currentVel.y - GRAVITY * deltaTime;  // v = v0 - gt
 
-    // set the lower bounds of the current basketball
     setLowerBounds(ball);
+    // set the lower bounds of the current basketball
+    // int x0 = ball->currentPos.x;
+    // int y0 = ball->currentPos.y;
+
+    // int radius = BASKETBALL_RADIUS;
+    // printf("Printing basketball lowerBounds: \n");
+
+    // for (int x = -radius, bounds = 0; x <= radius; x++, bounds++) {
+    //     int y1 = y0 + sqrt(radius * radius - x * x);
+        
+    //     ball->lowerBounds[bounds].x = x0 + x;
+    //     ball->lowerBounds[bounds].y = y1;
+    //     printf("basketball lower base: %d %d\n", x0 + x, y1);
+    // }
     
     // Check if the new position is within the screen boundaries
     if (new_x >= 0 && new_x < 320 && new_y >= 0 && new_y < 240) {
@@ -1090,6 +1085,25 @@ void updateBasketball(Basketball *ball) {
         // update the angle
         ball->currentAngle = atan(ball->currentVel.y / ball->currentVel.x);
         printf("updated pos.\n");
+    }
+
+    // if ball hits the board frame then bounce it off using momentum
+    if ((ball->currentPos.x - 10) <= 38 && (ball->currentPos.y + 10) <= 99 && (ball->currentPos.y - 10) >= 35) {
+        // conservation of momentum: assuming elastic collision (no drag / air resistance)
+        // m1u1 + m2u2 = m1v1 + m2v2
+        // u2 = 0, v2 = 0
+        updateReboundVel(ball, false);
+        printf("rebounded from frame.\n");
+    
+    // check if the ball hit the ring
+    } else if (isItTouchingRing(*ball, game.hoop.ringStartPos.x, game.hoop.ringStartPos.y) || isItTouchingRing(*ball, game.hoop.ringEndPos.x, game.hoop.ringEndPos.y)) {
+        updateReboundVel(ball, true);
+        printf("rebounded from ring.\n");
+
+    // increment score if the ball passses the ring, check if the vertical velocity component is downwards
+    } else if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) && (ball->currentPos.y == game.hoop.ringStartPos.y) && (ball->currentVel.y < 0)) {
+        game.currentRound.playerTurn.score++;
+        printf("SCORED!\n");
     }
     
     // If the basketball has hit the ground or is out of screen boudaries
