@@ -116,8 +116,10 @@
 #define BASKETBALL_RADIUS 10
 #define X_DIM 320
 #define Y_DIM 240
-#define MAX_ANGLE M_PI / 2
-#define MIN_ANGLE (-1) * M_PI / 2
+#define MAX_ANGLE M_PI  // 3rd quadrant ends
+#define MIN_ANGLE 0   // 3rd quadrant starts
+#define MAX_VELOCITY 100   // 3rd quadrant starts
+#define MIN_VELOCITY 40   // 3rd quadrant starts
 #define halfRadian 0.05
 #define faster 10
 #define TIMERSEC 100000000  // 1 second
@@ -180,6 +182,10 @@ typedef struct {
 typedef struct {
     Position initialPos;
     Position currentPos;
+    Position boardTopPos;
+    Position boardBottomPos;
+    Position ringStartPos;
+    Position ringEndPos;
     Position bounds;
     float mass;
 } BasketballHoop;
@@ -388,8 +394,14 @@ void updateVelocity(Basketball *ball);
 void initializeRound1(Game *game);
 void initializeRound2(Game *game);
 
+/* Game Logic helper functions Prototypes */
+bool isItTouchingRing(Basketball ball);
+void updateReboundVel(Basketball *ball, bool hitRing);
+
 /* FSM Functions Prototypes */
 void updateState(Game *game);
+
+Position lowerBounds[2*BASKETBALL_RADIUS]; // keeps track of the coordinates of the lower half of the ball
 
 int main(void) {
     /****************** VGA SETUP ******************/
@@ -567,12 +579,12 @@ void updateState(Game *game) {
         case PLAYING_ROUND1:
 
             // printf("Round 1 Playing\n");
-  
-            draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
+
             draw_image(floorImg, (Position){0, 141}, 320, 99); 
             drawScore(game);
             drawTimer(game);
             draw_basketball(&game->currentBall, 0xFFFF, true);
+            draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
 
             // only show projectile when the ball is static
             if (!(game->currentBall.isMoving)) {
@@ -594,30 +606,41 @@ void updateState(Game *game) {
 				// set the ball position
             } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.y += 1;
+                game->currentBall.currentPos.y += 2;
             } else if (pressedKey == S && game->currentBall.currentPos.y > 0 && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.y -= 1;
+                game->currentBall.currentPos.y -= 2;
             } else if (pressedKey == A && game->currentBall.currentPos.x > 0 && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.x -= 1;
+                game->currentBall.currentPos.x -= 2;
             } else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.x += 1;
+                game->currentBall.currentPos.x += 2;
 				
 				// set the angle of projection
-			} else if (pressedKey == UP && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
+			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
 				game->currentBall.currentAngle += halfRadian;
+                printf("angle: %d\n", game->currentBall.currentAngle);
 				updateVelocity(&game->currentBall);
-			} else if (pressedKey == DOWN && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
+			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
 				game->currentBall.currentAngle -= halfRadian;
+                printf("angle: %d\n", game->currentBall.currentAngle);
 				updateVelocity(&game->currentBall);
-			}
+			
+            // power up the ball so it moves faster
+            } else if (pressedKey == UP && keyPressed && game->currentBall.currentVel.v0 < MAX_VELOCITY) {
+                keyPressed = false;
+                game->currentBall.currentVel.v0 += faster;
+                updateVelocity(&game->currentBall);
+            } else if (pressedKey == DOWN && keyPressed && game->currentBall.currentVel.v0 >= MIN_VELOCITY) {
+                keyPressed = false;
+                game->currentBall.currentVel.v0 -= faster;
+                updateVelocity(&game->currentBall);
+            }
 			
 			updateGame(game, 0);  // one second passes between each cycle
-			clearKeyboardBuffer();
 			
             break;
 
@@ -631,12 +654,12 @@ void updateState(Game *game) {
         case PLAYING_ROUND2:
 
             // printf("Round 2 Playing\n");
-            
-            draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
+
             draw_image(floorImg, (Position){0, 141}, 320, 99); 
             drawScore(game);
             drawTimer(game);
             draw_basketball(&game->currentBall, 0xFFFF, true);
+            draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
 
             // only show projectile when the ball is static
             if (!(game->currentBall.isMoving)) {
@@ -646,7 +669,7 @@ void updateState(Game *game) {
             // Transition to the game over state when the game is over
             if (game->currentRound.currentTime >= game->currentRound.maxTime) {
                 game->currentRound.isRoundOver = true;
-                game->currentState = SETUP_ROUND2;
+                game->currentState = GAME_OVER;
                 draw_image(round2, (Position){0, 0}, 320, 240);
 				
 				// release the ball
@@ -658,35 +681,42 @@ void updateState(Game *game) {
 				// set the ball position
             } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.y += 1;
+                game->currentBall.currentPos.y += 2;
             } else if (pressedKey == S && game->currentBall.currentPos.y > 0 && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.y -= 1;
+                game->currentBall.currentPos.y -= 2;
             } else if (pressedKey == A && game->currentBall.currentPos.x > 0 && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.x -= 1;
+                game->currentBall.currentPos.x -= 2;
             } else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.x += 1;
+                game->currentBall.currentPos.x += 2;
 				
 				// set the angle of projection
-			} else if (pressedKey == UP && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
+			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
 				game->currentBall.currentAngle += halfRadian;
+                printf("angle: %d\n", game->currentBall.currentAngle);
 				updateVelocity(&game->currentBall);
-			} else if (pressedKey == DOWN && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
+			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
 				game->currentBall.currentAngle -= halfRadian;
+                printf("angle: %d\n", game->currentBall.currentAngle);
 				updateVelocity(&game->currentBall);
 			
             // power up the ball so it moves faster
-            } else if (pressedKey == RIGHT) {
+            } else if (pressedKey == UP && keyPressed) {
+                keyPressed = false;
                 game->currentBall.currentVel.v0 += faster;
                 updateVelocity(&game->currentBall);
+            } else if (pressedKey == DOWN && keyPressed) {
+                keyPressed = false;
+                game->currentBall.currentVel.v0 -= faster;
+                updateVelocity(&game->currentBall);
             }
-			updateGame(game, 0);  // one second passes between each cycle
-			clearKeyboardBuffer();
 			
+			updateGame(game, 0);  // one second passes between each cycle
+
             break;
 
         case GAME_OVER:
@@ -872,8 +902,8 @@ void drawProjectile(Game *game) {
         // Calculate the new position
 
         // divided the time by 10 so we can get more points on the projectile
-        int new_x = x + dx * (t / 20);
-        int new_y = y - (dy * (t / 20) - (int)(0.5 * GRAVITY * (t / 20) * (t / 20)));
+        int new_x = x - dx * t / 20;
+        int new_y = y - (dy * t / 20 - (int)(0.5 * GRAVITY * t / 20 * t / 20));
 
         // Check if the new position is within the screen boundaries
         if (new_x >= 0 && new_x < 320 && new_y >= 0 && new_y < 240) {
@@ -883,7 +913,8 @@ void drawProjectile(Game *game) {
         // Update the position and velocity
         x = new_x;
         y = new_y;
-        dy -= GRAVITY * (t / 20);  // Update the y-velocity due to gravity
+        dy -= GRAVITY * t / 20;  // Update the y-velocity due to gravity
+        t++;
     }
 }
 
@@ -1002,15 +1033,30 @@ void initializeGame(Game *game) {
     game->currentBall.initialPos.y = 3 * Y_DIM / 4;
     game->currentBall.currentPos.x = 3 * X_DIM / 4;
     game->currentBall.currentPos.y = 3 * Y_DIM / 4;
-    game->currentBall.startingAngle = M_PI*(1/4);
-	game->currentBall.initialVel.v0 = 70;
-	game->currentBall.initialVel.x = 70*cos(3*M_PI/4);
-	game->currentBall.initialVel.y = 70*sin(3*M_PI/4);
-	game->currentBall.currentVel.v0 = 70;
-	game->currentBall.currentVel.x = 70*cos(3*M_PI/4);
-	game->currentBall.currentVel.y = 70*sin(3*M_PI/4);
+    game->currentBall.startingAngle = M_PI/4;
+	game->currentBall.initialVel.v0 = 50;
+	game->currentBall.initialVel.x = 50*cos(M_PI/4);
+	game->currentBall.initialVel.y = 50*sin(M_PI/4);
+	game->currentBall.currentVel.v0 = 50;
+	game->currentBall.currentVel.x = 50*cos(M_PI/4);
+	game->currentBall.currentVel.y = 50*sin(M_PI/4);
     game->currentBall.isMoving = false;
 //    game->currentBall.mass = 0.625; // mass in kgs
+    int x0 = game->currentBall.currentPos.x;
+    int y0 = game->currentBall.currentPos.y;
+
+    int radius = BASKETBALL_RADIUS;
+//    printf("Printing basketball lowerBounds: \n");
+
+    for (int x = -radius, bounds = 0; x <= radius, bounds <= 2*radius ; x++, bounds++) {
+        int y1 = y0 + sqrt(radius * radius - x * x);
+        
+        lowerBounds[bounds].x = x0 + x;
+        lowerBounds[bounds].y = y1;
+
+//        printf("basketball lower base: %d %d\n", x0 + x, y1);
+    }
+
 	game->currentBall.projTime = 0;
     game->currentBall.owner = game->player1;
 
@@ -1030,13 +1076,26 @@ void initializeGame(Game *game) {
     game->currentRound = (Round){0, game->player1, 0, 0, true};
 }
 
+bool isItTouchingRing(Basketball ball) {
+    // is the lower half of the ball touching the ring?
+    bool touching = false;
+    
+    for (int index = 0; index < 2*BASKETBALL_RADIUS; index++) {
+        if ((lowerBounds[index].x <= game.hoop.ringStartPos.x && lowerBounds[index].x >= game.hoop.boardTopPos.x && lowerBounds[index].y == game.hoop.ringStartPos.y) || 
+            (lowerBounds[index].x <= (game.hoop.ringEndPos.x + 1) && lowerBounds[index].x >= (game.hoop.ringEndPos.x - 1) && lowerBounds[index].y == game.hoop.ringStartPos.y)) {
+            return true;
+        }
+    }
+    return touching;
+}
+
 void updateVelocity(Basketball *ball) {
     // get the new angle of the ball
     float angle = ball->currentAngle;
 
     // update the velocity of the ball
     ball->currentVel.x = ball->currentVel.v0 * cos(angle);
-    ball->currentVel.x = ball->currentVel.v0 * sin(angle);
+    ball->currentVel.y = ball->currentVel.v0 * sin(angle);
 }
 
 void updateBasketball(Basketball *ball) {
@@ -1047,8 +1106,8 @@ void updateBasketball(Basketball *ball) {
 	
 	int deltaTime = ball->projTime;
 	
-    int new_x = ball->currentPos.x + ball->currentVel.x * deltaTime/20;   // x = v0t
-    int new_y = ball->currentPos.y - ball->currentVel.y * deltaTime/20 - (0.5 * GRAVITY) * (deltaTime/20) * (deltaTime/20);  // y = v0t - 0.5gt^2
+    int new_x = ball->currentPos.x - ball->currentVel.x * deltaTime/20;   // x = v0t
+    int new_y = ball->currentPos.y - ball->currentVel.y * deltaTime/20 - (0.5 * GRAVITY) * deltaTime/20 * deltaTime/20;  // y = v0t - 0.5gt^2
 
     int new_dy = ball->currentVel.y - GRAVITY * deltaTime/20;  // v = v0 - gt
 
@@ -1064,7 +1123,29 @@ void updateBasketball(Basketball *ball) {
         ball->currentVel.y = new_dy;  // v = v0 - gt
 
         // update the angle
-        ball->currentAngle = atan(ball->currentVel.y / ball->currentVel.x);
+        // float angle = atan(ball->currentVel.y / ball->currentVel.x);
+        // printf("angle: %d\n", angle);
+        // if (angle >= 0) {
+        //     ball->currentAngle = (M_PI/2) + angle;
+        // } else {
+        //     ball->currentAngle = (M_PI/2) - angle;
+        // }
+        
+        //ball->currentAngle = atan(ball->currentVel.y / ball->currentVel.x);
+
+        int x0 = ball->currentPos.x;
+        int y0 = ball->currentPos.y;
+
+        int radius = BASKETBALL_RADIUS;
+//        printf("Printing basketball lowerBounds: \n");
+
+        for (int x = -radius, bounds = 0; x <= radius; x++, bounds++) {
+            int y1 = y0 + sqrt(radius * radius - x * x);
+            
+            lowerBounds[bounds].x = x0 + x;
+            lowerBounds[bounds].y = y1;
+//            printf("basketball lower base: %d %d\n", x0 + x, y1);
+        }
 
         // if ball hits the board frame then bounce it off using momentum
         if ((new_x - 10) <= 38 && (new_y + 10) <= 99 && (new_y - 10) >= 35) {
@@ -1072,8 +1153,18 @@ void updateBasketball(Basketball *ball) {
             // m1u1 + m2u2 = m1v1 + m2v2
 
             ball->currentVel.x = (-1)* ball->currentVel.x;
-            // ball->currentAngle = (-1)* ball->currentAngle;
-            // updateVelocity(ball);
+            printf("rebounded from frame.\n");
+
+        // check if the ball hit the ring
+        } else if (isItTouchingRing(*ball) || isItTouchingRing(*ball)) {
+            ball->currentVel.x = (-1)* ball->currentVel.x;
+            ball->currentVel.y = (-1)* ball->currentVel.y;
+            printf("rebounded from ring.\n");
+
+        // increment score if the ball passses the ring, check if the vertical velocity component is downwards
+        } else if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) && (ball->currentPos.y == game.hoop.ringStartPos.y) && (ball->currentVel.y < 0)) {
+            game.currentRound.playerTurn.score++;
+            printf("SCORED!\n");
         }
     }
     
