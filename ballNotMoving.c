@@ -1055,7 +1055,20 @@ void updateBasketball(Basketball *ball) {
 
     int new_dy = ball->currentVel.y - GRAVITY * deltaTime;  // v = v0 - gt
 
-    setLowerBounds(ball);
+    // setLowerBounds(ball);
+	int x0 = ball->currentPos.x;
+    int y0 = ball->currentPos.y;
+
+    int radius = BASKETBALL_RADIUS;
+    printf("Printing basketball lowerBounds: \n");
+
+    for (int x = -radius, bounds = 0; x <= radius; x++, bounds++) {
+        int y1 = y0 + sqrt(radius * radius - x * x);
+        
+        ball->lowerBounds[bounds].x = x0 + x;
+        ball->lowerBounds[bounds].y = y1;
+        printf("basketball lower base: %d %d\n", x0 + x, y1);
+    }
     // set the lower bounds of the current basketball
     // int x0 = ball->currentPos.x;
     // int y0 = ball->currentPos.y;
@@ -1107,7 +1120,7 @@ void updateBasketball(Basketball *ball) {
     }
     
     // If the basketball has hit the ground or is out of screen boudaries
-    else {
+    else if (new_x < 0 && new_x >= 320 && new_y < 0 && new_y >= 240) {
         ball->currentPos.x = ball->initialPos.x;
         ball->currentPos.y = ball->initialPos.y;
         ball->currentVel.x = ball->initialVel.x;
