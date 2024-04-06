@@ -211,6 +211,7 @@ typedef volatile struct {
     int snaph;    // read only, 16 bits; contains higher 16 bits of the counter value
 } Timer;
 Timer *timer = (Timer *)0xFF202000;
+Timer *timer2 = (Timer *)0xFF202020;
 
 typedef struct {
     int roundNumber;
@@ -546,8 +547,8 @@ void updateState(Game *game) {
     clear_screen();  // Clear the screen, will remove this later to imrpove performance
 
     switch (game->currentState) {
+        
         case INITIALIZING:
-
             // printf("Game initialized\n");
             draw_image(basketblitz, (Position){0, 0}, 320, 240);
 
@@ -572,9 +573,10 @@ void updateState(Game *game) {
 
         case SETUP_ROUND1:
 
+            wait(2);  // Wait for 2 seconds before starting the round
             initializeRound1(game);
             game->currentState = PLAYING_ROUND1;
-
+            
             break;
 
         case PLAYING_ROUND1:
@@ -647,9 +649,9 @@ void updateState(Game *game) {
 
         case SETUP_ROUND2:
 
+            wait(2);
             initializeRound2(game);
             game->currentState = PLAYING_ROUND2;
-
             break;
 
         case PLAYING_ROUND2:
@@ -736,9 +738,7 @@ void updateState(Game *game) {
 
             break;
     }
-    clearKeyboardBuffer();  // Prevents the game from registering multiple key presses and overflowing the buffer
-    // Note bufer overflow is not a problem on the DE1-SoC, but it is good practice to clear the buffer
-    // waitASec();  // Wait a second before updating the game state
+    clearKeyboardBuffer(); 
 }
 
 /* -------------------------------------------------------------------------- */
@@ -763,17 +763,16 @@ void initializeTimer(Timer *timer) {
     timer->periodh = (TIMERSEC & 0xFFFF0000) >> 16;
 }
 
-// Function to wait for 1 second using polling
 void wait(int numSec) {
     int newTime = TIMERSEC * numSec;
-    timer->control = 0x8;  // stop the timer
-    timer->status = 0;     // reset TO
-    timer->periodl = (newTime & 0x0000FFFF);
-    timer->periodh = (newTime & 0xFFFF0000) >> 16;
-    timer->control = 0x4;
-    while ((timer->status & 0x1) == 0)
+    timer2->control = 0x8;  // stop the timer
+    timer2->status = 0;     // reset TO
+    timer2->periodl = (newTime & 0x0000FFFF);
+    timer2->periodh = (newTime & 0xFFFF0000) >> 16;
+    timer2->control = 0x4;
+    while ((timer2->status & 0x1) == 0)
         ;
-    timer->status = 0;  // reset TO
+    timer2->status = 0;  // reset TO
     // print num of seconds
 }
 
