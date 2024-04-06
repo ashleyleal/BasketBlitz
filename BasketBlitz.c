@@ -1062,6 +1062,10 @@ void initializeGame(Game *game) {
     // Initialize the hoop
     game->hoop.bounds.x = 90;
     game->hoop.bounds.y = 98;
+    game->hoop.boardTopPos.x = 43;
+    game->hoop.boardTopPos.y = 29;
+    game->hoop.boardBottomPos.x = 43;
+    game->hoop.boardBottomPos.y = 88;
     game->hoop.initialPos.x = 0;
     game->hoop.initialPos.y = 29;
     game->hoop.currentPos.x = 0;
