@@ -388,6 +388,7 @@ void drawTimer(Game *game);
 
 /* Game Logic Functions Prototypes */
 void initializeGame(Game *game);
+void initializeBasketball(Basketball *ball);
 void updateBasketball(Basketball *ball);
 void updateGame(Game *game, int deltaTime);
 void updateVelocity(Basketball *ball);
@@ -1006,6 +1007,7 @@ void initializeRound1(Game *game) {
     round1.maxTime = 45;
     round1.isRoundOver = false;
     game->currentRound = round1;
+    initializeBasketball(&game->currentBall);
 }
 
 void initializeRound2(Game *game) {
@@ -1016,6 +1018,7 @@ void initializeRound2(Game *game) {
     round2.maxTime = 45;
     round2.isRoundOver = false;
     game->currentRound = round2;
+    initializeBasketball(&game->currentBall);
 }
 
 void initializeGame(Game *game) {
@@ -1028,18 +1031,18 @@ void initializeGame(Game *game) {
     strcpy(game->player2.name, "Player 2");
 
     // Initialize the basketball
-    game->currentBall.initialPos.x = 3 * X_DIM / 4;
-    game->currentBall.initialPos.y = 3 * Y_DIM / 4;
-    game->currentBall.currentPos.x = 3 * X_DIM / 4;
-    game->currentBall.currentPos.y = 3 * Y_DIM / 4;
-    game->currentBall.startingAngle = M_PI/4;
-	game->currentBall.initialVel.v0 = 50;
-	game->currentBall.initialVel.x = 50*cos(M_PI/4);
-	game->currentBall.initialVel.y = 50*sin(M_PI/4);
-	game->currentBall.currentVel.v0 = 50;
-	game->currentBall.currentVel.x = 50*cos(M_PI/4);
-	game->currentBall.currentVel.y = 50*sin(M_PI/4);
-    game->currentBall.isMoving = false;
+    // game->currentBall.initialPos.x = 3 * X_DIM / 4;
+    // game->currentBall.initialPos.y = 3 * Y_DIM / 4;
+    // game->currentBall.currentPos.x = 3 * X_DIM / 4;
+    // game->currentBall.currentPos.y = 3 * Y_DIM / 4;
+    // game->currentBall.startingAngle = M_PI/4;
+	// game->currentBall.initialVel.v0 = 50;
+	// game->currentBall.initialVel.x = 50*cos(M_PI/4);
+	// game->currentBall.initialVel.y = 50*sin(M_PI/4);
+	// game->currentBall.currentVel.v0 = 50;
+	// game->currentBall.currentVel.x = 50*cos(M_PI/4);
+	// game->currentBall.currentVel.y = 50*sin(M_PI/4);
+    // game->currentBall.isMoving = false;
 //    game->currentBall.mass = 0.625; // mass in kgs
     int x0 = game->currentBall.currentPos.x;
     int y0 = game->currentBall.currentPos.y;
@@ -1082,6 +1085,22 @@ void initializeGame(Game *game) {
     game->previousState = NONE;
     game->currentRound = (Round){0, game->player1, 0, 0, true};
 }
+
+void initializeBasketball(Basketball *ball) {
+    ball->initialPos.x = 3 * X_DIM / 4;
+    ball->initialPos.y = 3 * Y_DIM / 4;
+    ball->currentPos.x = 3 * X_DIM / 4;
+    ball->currentPos.y = 3 * Y_DIM / 4;
+    ball->startingAngle = M_PI/4;
+    ball->initialVel.v0 = 50;
+    ball->initialVel.x = 50*cos(M_PI/4);
+    ball->initialVel.y = 50*sin(M_PI/4);
+    ball->currentVel.v0 = 50;
+    ball->currentVel.x = 50*cos(M_PI/4);
+    ball->currentVel.y = 50*sin(M_PI/4);
+    ball->isMoving = false;
+}
+
 
 bool isItTouchingRing(Basketball ball) {
     // is the lower half of the ball touching the ring?
