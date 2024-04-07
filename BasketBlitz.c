@@ -120,8 +120,8 @@
 #define MIN_ANGLE 0   // 3rd quadrant starts
 #define MAX_VELOCITY 100   // 3rd quadrant starts
 #define MIN_VELOCITY 40   // 3rd quadrant starts
-#define halfRadian 0.05
-#define faster 5
+#define halfRadian 0.025
+#define faster 2
 #define TIMERSEC 100000000  // 1 second
 
 /* VGA Display Parameters */
