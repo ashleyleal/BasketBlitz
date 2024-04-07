@@ -174,10 +174,16 @@ typedef struct {
 } Player;
 
 typedef struct {
+    Position oldPos1;
+    Position oldPos2;
     Position initialPos;
     Position currentPos;
+    float oldAngle1;
+    float oldAngle2;
     float startingAngle;
     float currentAngle;
+    Velocity oldVel1;
+    Velocity oldVel2;
     Velocity initialVel;
     Velocity currentVel;
     int projTime;
@@ -379,6 +385,7 @@ void clearKeyboardBuffer();
 /* VGA Graphics Functions Prototypes */
 void plot_pixel(int x, int y, short int color);
 void clear_screen();
+void erase_basketball(Basketball *ball);
 void wait_for_vsync();
 
 void draw_image(const unsigned short image[], Position pos, int width, int height);
@@ -411,6 +418,8 @@ void updateReboundVel(Basketball *ball, bool hitRing);
 void updateState(Game *game);
 
 Position lowerBounds[2*BASKETBALL_RADIUS]; // keeps track of the coordinates of the lower half of the ball
+int visit1;
+int visit2;
 
 int main(void) {
     /****************** VGA SETUP ******************/
@@ -545,18 +554,17 @@ void ps2_ISR(Game *game) {
 /* -------------------------------------------------------------------------- */
 /*                                 FSM                                        */
 /* -------------------------------------------------------------------------- */
-
 // Update the game state based on the current state and set initial screen for each state
 void updateState(Game *game) {
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
     game->previousState = game->currentState;              // Save the previous state
-
     // clear_screen();  // Clear the screen, will remove this later to imrpove performance
 
     switch (game->currentState) {
         
         case INITIALIZING:
             // printf("Game initialized\n");
+            clear_screen();
             draw_image(basketblitz, (Position){0, 0}, 320, 240);
 
             // Transition to the playing state when the spacebar is pressed
@@ -568,11 +576,12 @@ void updateState(Game *game) {
             break;
 
         case TUTORIAL:
+            
             draw_image(basketBlitzTutorial, (Position){0, 0}, 320, 240);
-
             // Transition to the playing state when the spacebar is pressed
             if (pressedKey == ENTER) {
                 game->currentState = SETUP_ROUND1;
+                clear_screen();
                 draw_image(round1, (Position){0, 0}, 320, 240);
             }
 
@@ -582,20 +591,32 @@ void updateState(Game *game) {
             wait(2);  // Wait for 2 seconds before starting the round
             clear_screen();
             initializeRound1(game);
-            game->currentState = PLAYING_ROUND1;
-            
+            draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
+            draw_image(floorImg, (Position){0, 154}, 320, 86); 
+            draw_image(player1, (Position){6, 5}, 56, 13);
+            visit1++;
+            if (visit1 == 2) {
+                // also draw on backBuffer
+                game->currentState = PLAYING_ROUND1;
+                draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
+                draw_image(floorImg, (Position){0, 154}, 320, 86); 
+                draw_image(player1, (Position){6, 5}, 56, 13);
+            }
             break;
 
         case PLAYING_ROUND1:
 
             // printf("Round 1 Playing\n");
+            
+            // erase the old basketball and projectile
+            erase_basketball(&game->currentBall);
 
-            // draw_image(floorImg, (Position){0, 154}, 320, 86); 
+            //draw_image(floorImg, (Position){0, 154}, 320, 86); 
             drawScore(game);
             drawTimer(game);
             draw_basketball(&game->currentBall, 0xFFFF, true);
-            draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
-            draw_image(player1, (Position){6, 5}, 56, 13);
+            //draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
+            //draw_image(player1, (Position){6, 5}, 56, 13);
 
             // only show projectile when the ball is static
             if (!(game->currentBall.isMoving)) {
@@ -617,26 +638,61 @@ void updateState(Game *game) {
 				// set the ball position
             } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.y += 5;
+                // update the old positions
+                game->currentBall.oldPos2.y = game->currentBall.oldPos1.y;
+                game->currentBall.oldPos1.y = game->currentBall.currentPos.y;
+
+                // update the current position
+                game->currentBall.currentPos.y += 8;
+                
             } else if (pressedKey == S && game->currentBall.currentPos.y > 0 && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.y -= 5;
+                // update the old positions
+                game->currentBall.oldPos2.y = game->currentBall.oldVel1.y;
+                game->currentBall.oldPos1.y = game->currentBall.currentPos.y;
+
+                // update the current position
+                game->currentBall.currentPos.y -= 8;
+
             } else if (pressedKey == A && game->currentBall.currentPos.x > 0 && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.x -= 5;
+                // update the old positions
+                game->currentBall.oldPos2.x = game->currentBall.oldVel1.x;
+                game->currentBall.oldPos1.x = game->currentBall.currentPos.x;
+
+                // update the current position
+                game->currentBall.currentPos.x -= 8;
+
             } else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.x += 5;
+                // update the old positions
+                game->currentBall.oldPos2.x = game->currentBall.oldVel1.x;
+                game->currentBall.oldPos1.x = game->currentBall.currentPos.x;
+
+                // update the current position                
+                game->currentBall.currentPos.x += 8;
 				
 				// set the angle of projection
 			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
+                // update the old angles
+                game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
+                game->currentBall.oldAngle1 = game->currentBall.oldAngle1;
+
+                // update the current angle
 				game->currentBall.currentAngle += halfRadian;
                 printf("angle: %d\n", game->currentBall.currentAngle);
 				updateVelocity(&game->currentBall);
+
 			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
-				game->currentBall.currentAngle -= halfRadian;
+                
+                // update the old angles
+                game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
+                game->currentBall.oldAngle1 = game->currentBall.oldAngle1;
+				
+                // update the current angle
+                game->currentBall.currentAngle -= halfRadian;
                 printf("angle: %d\n", game->currentBall.currentAngle);
 				updateVelocity(&game->currentBall);
 			
@@ -660,19 +716,32 @@ void updateState(Game *game) {
             wait(2);
             clear_screen();
             initializeRound2(game);
-            game->currentState = PLAYING_ROUND2;
+            draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
+            draw_image(player2, (Position){6, 5}, 56, 13);
+            draw_image(floorImg, (Position){0, 154}, 320, 86);
+            visit2++;
+            if (visit2 == 2) {
+                // also draw on backBuffer
+                game->currentState = PLAYING_ROUND2;
+                draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
+                draw_image(player2, (Position){6, 5}, 56, 13);
+                draw_image(floorImg, (Position){0, 154}, 320, 86);
+            }
             break;
 
         case PLAYING_ROUND2:
 
             // printf("Round 2 Playing\n");
 
+            // erase the old basketball and projectile
+            erase_basketball(&game->currentBall);
+
             // draw_image(floorImg, (Position){0, 154}, 320, 86); 
             drawScore(game);
             drawTimer(game);
             draw_basketball(&game->currentBall, 0xFFFF, true);
-            draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
-            draw_image(player2, (Position){6, 5}, 56, 13);
+            // draw_image(basketballhoop, game->hoop.currentPos, game->hoop.bounds.x, game->hoop.bounds.y);  // Draw basketball hoop
+            // draw_image(player2, (Position){6, 5}, 56, 13);
 
             // only show projectile when the ball is static
             if (!(game->currentBall.isMoving)) {
@@ -694,48 +763,83 @@ void updateState(Game *game) {
 				// set the ball position
             } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.y += 2;
+                // update the old positions
+                game->currentBall.oldPos2.y = game->currentBall.oldPos1.y;
+                game->currentBall.oldPos1.y = game->currentBall.currentPos.y;
+
+                // update the current position
+                game->currentBall.currentPos.y += 8;
+                
             } else if (pressedKey == S && game->currentBall.currentPos.y > 0 && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.y -= 2;
+                // update the old positions
+                game->currentBall.oldPos2.y = game->currentBall.oldVel1.y;
+                game->currentBall.oldPos1.y = game->currentBall.currentPos.y;
+
+                // update the current position
+                game->currentBall.currentPos.y -= 8;
+
             } else if (pressedKey == A && game->currentBall.currentPos.x > 0 && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.x -= 2;
+                // update the old positions
+                game->currentBall.oldPos2.x = game->currentBall.oldVel1.x;
+                game->currentBall.oldPos1.x = game->currentBall.currentPos.x;
+
+                // update the current position
+                game->currentBall.currentPos.x -= 8;
+
             } else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM && keyPressed) {
 				keyPressed = false;
-                game->currentBall.currentPos.x += 2;
+                // update the old positions
+                game->currentBall.oldPos2.x = game->currentBall.oldVel1.x;
+                game->currentBall.oldPos1.x = game->currentBall.currentPos.x;
+
+                // update the current position                
+                game->currentBall.currentPos.x += 8;
 				
 				// set the angle of projection
 			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
+                // update the old angles
+                game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
+                game->currentBall.oldAngle1 = game->currentBall.oldAngle1;
+
+                // update the current angle
 				game->currentBall.currentAngle += halfRadian;
                 printf("angle: %d\n", game->currentBall.currentAngle);
 				updateVelocity(&game->currentBall);
+
 			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
-				game->currentBall.currentAngle -= halfRadian;
+                
+                // update the old angles
+                game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
+                game->currentBall.oldAngle1 = game->currentBall.oldAngle1;
+				
+                // update the current angle
+                game->currentBall.currentAngle -= halfRadian;
                 printf("angle: %d\n", game->currentBall.currentAngle);
 				updateVelocity(&game->currentBall);
 			
             // power up the ball so it moves faster
-            } else if (pressedKey == UP && keyPressed) {
+            } else if (pressedKey == UP && keyPressed && game->currentBall.currentVel.v0 < MAX_VELOCITY) {
                 keyPressed = false;
                 game->currentBall.currentVel.v0 += faster;
                 updateVelocity(&game->currentBall);
-            } else if (pressedKey == DOWN && keyPressed) {
+            } else if (pressedKey == DOWN && keyPressed && game->currentBall.currentVel.v0 >= MIN_VELOCITY) {
                 keyPressed = false;
                 game->currentBall.currentVel.v0 -= faster;
                 updateVelocity(&game->currentBall);
             }
 			
 			updateGame(game, 0);  // one second passes between each cycle
-
+			
             break;
 
         case GAME_OVER:
 
             // printf("Game over\n");
-
+            clear_screen();
             draw_image(gameover, (Position){0, 0}, 320, 240);
             drawWinner(game);
 
@@ -799,9 +903,89 @@ void plot_pixel(int x, int y, short int color) {
 
 void clear_screen() {
     int x, y;
+
     for (x = 0; x < 320; x++)
         for (y = 0; y < 240; y++)
-            plot_pixel(x, y, 0x18c2);  // clear pixel at (x, y)
+            plot_pixel(x, y, 0x000);  // clear pixel at (x, y)
+}
+
+
+void erase_basketball(Basketball *ball) {
+    int x0 = ball->oldPos2.x;
+    int y0 = ball->oldPos2.y;
+    // int x01 = ball->oldPos1.x;
+    // int y01 = ball->oldPos1.y;
+
+    int radius = BASKETBALL_RADIUS;
+
+    // center of ball is its position
+    for (int x = -radius; x <= radius; x++) {
+
+        // erase the basketball in oldPos2
+        int y1 = y0 + sqrt(radius * radius - x * x);
+        int y2 = y0 - sqrt(radius * radius - x * x);
+
+        // Draw horizontal lines between the upper and lower halves of the circle
+        for (int y = y2 + 1; y < y1; y++) {
+            if (x0 + x >= 0 && x0 + x < X_DIM && y >= 0 && y < Y_DIM) {
+                plot_pixel(x0 + x, y, 0x000);
+            }
+        }
+
+        // // erase the basketball in oldPos1
+        // int y3 = y01 + sqrt(radius * radius - x * x);
+        // int y4 = y01 - sqrt(radius * radius - x * x);
+
+        // // Draw horizontal lines between the upper and lower halves of the circle
+        // for (int y = y4 + 1; y < y3; y++) {
+        //     if (x01 + x >= 0 && x01 + x < X_DIM && y >= 0 && y < Y_DIM) {
+        //         plot_pixel(x01 + x, y, 0x000);
+        //     }
+        // }
+
+    }
+
+    // Set the initial position and velocity of the projectile
+    int dx = ball->oldVel2.x;
+    int dy = ball->oldVel2.y;
+
+    // int dx1 = ball->oldVel1.x;
+    // int dy1 = ball->oldVel1.y;
+
+    // Calculate the trajectory of the projectile and draw a line
+    for (int t = 0; t <= 100; t++) {  // Assuming a maximum time duration for the projectile
+        // Calculate the new position
+
+        // divided the time by 10 so we can get more points on the projectile
+        int new_x = x0 - dx * t / 20;
+        int new_y = y0 - (dy * t / 20 - (int)(0.5 * GRAVITY * t / 20 * t / 20));
+
+        // Check if the new position is within the screen boundaries
+        if (new_x >= 0 && new_x < 320 && new_y >= 0 && new_y < 240) {
+            draw_line(x0, y0, new_x, new_y, 0x000);
+        }
+
+        // Update the position and velocity
+        x0 = new_x;
+        y0 = new_y;
+        dy -= GRAVITY * t / 20;  // Update the y-velocity due to gravity
+
+        //         // divided the time by 10 so we can get more points on the projectile
+        // int new_x1 = x01 - dx1 * t / 20;
+        // int new_y1 = y01 - (dy1 * t / 20 - (int)(0.5 * GRAVITY * t / 20 * t / 20));
+
+        // // Check if the new position is within the screen boundaries
+        // if (new_x1 >= 0 && new_x1 < 320 && new_y1 >= 0 && new_y1 < 240) {
+        //     draw_line(x01, y01, new_x1, new_y1, 0x000);
+        // }
+
+        // // Update the position and velocity
+        // x01 = new_x1;
+        // y01 = new_y1;
+        // dy1 -= GRAVITY * t / 20;  // Update the y-velocity due to gravity
+    
+        t++;
+    }
 }
 
 void wait_for_vsync() {
@@ -1023,7 +1207,7 @@ void initializeRound1(Game *game) {
     initializeBasketball(&game->currentBall);
 
     // stuff that only needs to be drawn once
-    draw_image(floorImg, (Position){0, 154}, 320, 86); 
+//    draw_image(floorImg, (Position){0, 154}, 320, 86); 
 }
 
 void initializeRound2(Game *game) {
@@ -1036,10 +1220,14 @@ void initializeRound2(Game *game) {
     game->currentRound = round2;
     initializeBasketball(&game->currentBall);
 
-    draw_image(floorImg, (Position){0, 154}, 320, 86); 
+//    draw_image(floorImg, (Position){0, 154}, 320, 86); 
 }
 
 void initializeGame(Game *game) {
+
+    visit1 = 0;
+    visit2 = 0;
+
     // Initialize the players
     game->player1.score = 0;
     game->player2.score = 0;
@@ -1108,7 +1296,18 @@ void initializeBasketball(Basketball *ball) {
     // ensure that the controls from last round are reset so they dont carry over
     keyPressed = false;
     pressedKey = 0;
+    
     // Initialize the basketball
+    // ball->oldPos1.x = 3 * X_DIM / 4;
+    // ball->oldPos1.x = 3 * Y_DIM / 4;
+    // ball->oldPos2.x = 3 * X_DIM / 4;
+    // ball->oldPos2.y = 3 * Y_DIM / 4;
+    // ball->oldVel1.x = 50*cos(M_PI/4)
+    // ball->oldVel1.y = 50*sin(M_PI/4)
+    // ball->oldVel2.x = 50*cos(M_PI/4);
+    // ball->oldVel2.y = 50*sin(M_PI/4);
+    // Initialize the basketball
+
     ball->initialPos.x = 3 * X_DIM / 4;
     ball->initialPos.y = 3 * Y_DIM / 4;
     ball->currentPos.x = 3 * X_DIM / 4;
@@ -1139,6 +1338,12 @@ bool isItTouchingRing(Basketball ball) {
 void updateVelocity(Basketball *ball) {
     // get the new angle of the ball
     float angle = ball->currentAngle;
+    
+    // update the old velocities of the ball
+    ball->oldVel2.x = ball->oldVel1.x;
+    ball->oldVel2.y = ball->oldVel1.y;
+    ball->oldVel1.x = ball->currentVel.x;
+    ball->oldVel1.y = ball->currentVel.y;
 
     // update the velocity of the ball
     ball->currentVel.x = ball->currentVel.v0 * cos(angle);
