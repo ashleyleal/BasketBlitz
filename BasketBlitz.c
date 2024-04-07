@@ -120,8 +120,8 @@
 #define MIN_ANGLE 0   // 3rd quadrant starts
 #define MAX_VELOCITY 100   // 3rd quadrant starts
 #define MIN_VELOCITY 40   // 3rd quadrant starts
-#define halfRadian 0.025
-#define faster 2
+#define halfRadian 0.05
+#define faster 5
 #define TIMERSEC 100000000  // 1 second
 
 /* VGA Display Parameters */
@@ -425,6 +425,7 @@ Position oldLowerBounds[2*BASKETBALL_RADIUS]; // keeps track of the coordinates 
 int visit1;
 int visit2;
 bool erased;
+bool pressDone;
 
 // variable to keep track if the moving ball has already scored 
 bool incremented;
@@ -546,10 +547,12 @@ void ps2_ISR(Game *game) {
         byte2 = byte3;
         byte3 = PS2_data & 0xFF;
 
-        // find the key that was pressed
-        pressedKey = byte3;
-
-        keyPressed = true;
+        if (!pressDone) {
+            printf("key changed\n");
+            // find the key that was pressed
+            pressedKey = byte3;
+            keyPressed = true;
+        }
 
     } else {
         pressedKey = 0;
@@ -569,6 +572,7 @@ void updateState(Game *game) {
     game->previousState = game->currentState;              // Save the previous state
     // clear_screen();  // Clear the screen, will remove this later to imrpove performance
     bool updated = false;
+    pressDone = false;
 
     switch (game->currentState) {
         
@@ -618,6 +622,7 @@ void updateState(Game *game) {
 
             // printf("Round 1 Playing\n");
             // erase the old basketball and projectile
+            
             erase_basketball(&game->currentBall);
 
             // draw the animated items
@@ -647,8 +652,8 @@ void updateState(Game *game) {
             } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM && keyPressed) {
 				keyPressed = false;
                 // update the old positions
-                game->currentBall.oldPos2.y = game->currentBall.oldPos1.y;
-                game->currentBall.oldPos1.y = game->currentBall.currentPos.y;
+                game->currentBall.oldPos2 = game->currentBall.oldPos1;
+                game->currentBall.oldPos1 = game->currentBall.currentPos;
 
                 // update the current position
                 game->currentBall.currentPos.y += 8;
@@ -665,8 +670,8 @@ void updateState(Game *game) {
             } else if (pressedKey == S && game->currentBall.currentPos.y > 0 && keyPressed) {
 				keyPressed = false;
                 // update the old positions
-                game->currentBall.oldPos2.y = game->currentBall.oldPos1.y;
-                game->currentBall.oldPos1.y = game->currentBall.currentPos.y;
+                game->currentBall.oldPos2 = game->currentBall.oldPos1;
+                game->currentBall.oldPos1 = game->currentBall.currentPos;
 
                 // update the current position
                 game->currentBall.currentPos.y -= 8;
@@ -683,8 +688,8 @@ void updateState(Game *game) {
             } else if (pressedKey == A && game->currentBall.currentPos.x > 0 && keyPressed) {
 				keyPressed = false;
                 // update the old positions
-                game->currentBall.oldPos2.x = game->currentBall.oldPos1.x;
-                game->currentBall.oldPos1.x = game->currentBall.currentPos.x;
+                game->currentBall.oldPos2 = game->currentBall.oldPos1;
+                game->currentBall.oldPos1 = game->currentBall.currentPos;
 
                 // update the current position
                 game->currentBall.currentPos.x -= 8;
@@ -701,8 +706,8 @@ void updateState(Game *game) {
             } else if (pressedKey == D && game->currentBall.currentPos.x < X_DIM && keyPressed) {
 				keyPressed = false;
                 // update the old positions
-                game->currentBall.oldPos2.x = game->currentBall.oldPos1.x;
-                game->currentBall.oldPos1.x = game->currentBall.currentPos.x;
+                game->currentBall.oldPos2 = game->currentBall.oldPos1;
+                game->currentBall.oldPos1 = game->currentBall.currentPos;
 
                 // update the current position                
                 game->currentBall.currentPos.x += 8;
@@ -796,6 +801,7 @@ void updateState(Game *game) {
             }
 
 			updateGame(game, 0);  // one second passes between each cycle
+
             break;
 
         case SETUP_ROUND2:
@@ -1525,33 +1531,6 @@ bool isItTouchingRing(Basketball ball) {
     return touching;
 }
 
-// bool didItScore(Basketball ball) {
-//     // is the lower half of the ball touching the ring?
-//     bool scored = false;
-    
-//     for (int index = 0; index < 2*BASKETBALL_RADIUS; index++) {
-//         if (oldLowerBounds[index].x <= 83 && oldLowerBounds[index].x >= 41 && (oldLowerBounds[index].y <= 106) && (oldLowerBounds[index].y >= 95) && (ball.oldVel1.y < 0)) {
-//             if (lowerBounds[index].x <= 33 && lowerBounds[index].x >= 41 && (lowerBounds[index].y <= 119) && (lowerBounds[index].y >= 113) && (ball.currentVel.y < 0)) {
-//                 scored = true;
-//                 break;
-//             }
-//         }
-//     }
-//     return scored;
-// }
-
-
-// bPPX !
-//TL: {41, 95}
-// TR: {83, 95}
-// BL: {41, 106}
-// BR: {83, 106}
-
-//TL: {47, 113}
-// TR: {75, 113}
-// BL: {47, 119}
-// BR: {75, 119}
-
 void updateVelocity(Basketball *ball) {
     // get the new angle of the ball
     float angle = ball->currentAngle;
@@ -1608,22 +1587,10 @@ void updateBasketball(Basketball *ball) {
         for (int x = -radius, bounds = 0; x <= radius, bounds <= 2*BASKETBALL_RADIUS ; x++, bounds++) {
             int y1 = ball->currentPos.y + sqrt(radius * radius - x * x);
 
-            oldLowerBounds[bounds] = lowerBounds[bounds];
-
             lowerBounds[bounds].x = ball->currentPos.x + x;
             lowerBounds[bounds].y = y1;
         }
  
-
-        // // increment score if the ball passses the ring, check if the vertical velocity component is downwards
-        // if (!incremented) {
-        //     if (didItScore(*ball)) {
-        //         game.currentRound.playerTurn->score++;
-        //         printf("SCORED!\n");
-        //         incremented = true;
-        //     }
-        // }
-
         // increment score if the ball passses the ring, check if the vertical velocity component is downwards
         if (!incremented) {
             if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) /*the ball x-position is inside the ring*/
