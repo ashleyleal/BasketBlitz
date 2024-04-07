@@ -1132,10 +1132,6 @@ void erase_basketball(Basketball *ball) {
                     // plot_pixel(x0 + x, y, hoopAndFloor[(y * 320) + x0 + x]);
                     plot_pixel(x01 + x, y, 0x000);
                 }
-
-                else {
-                    continue;
-                }
             }
 
         }
