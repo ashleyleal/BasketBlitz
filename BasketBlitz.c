@@ -120,7 +120,7 @@
 #define MIN_ANGLE 0   // 3rd quadrant starts
 #define MAX_VELOCITY 100   // 3rd quadrant starts
 #define MIN_VELOCITY 40   // 3rd quadrant starts
-#define halfRadian 0.025
+#define halfRadian 0.05
 #define faster 5
 #define TIMERSEC 100000000  // 1 second
 
@@ -717,7 +717,7 @@ void updateState(Game *game) {
                 updated = true;
 
 				// set the angle of projection
-			} else if (pressedKey == RIGHT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
+			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
                 // update the old angles
                 game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
@@ -734,7 +734,7 @@ void updateState(Game *game) {
 
                 updated = true;
 
-			} else if (pressedKey == LEFT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
+			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
                 
                 // update the old angles
@@ -1517,7 +1517,7 @@ bool isItTouchingRing(Basketball ball) {
     
     for (int index = 0; index < 2*BASKETBALL_RADIUS; index++) {
         if ((lowerBounds[index].x <= game.hoop.ringStartPos.x && lowerBounds[index].x >= game.hoop.boardTopPos.x && (lowerBounds[index].y <= game.hoop.ringStartPos.y + 5) && (lowerBounds[index].y >= game.hoop.ringStartPos.y - 5)) 
-            || ((lowerBounds[index].x <= (game.hoop.ringEndPos.x + 2)) && (lowerBounds[index].x >= (game.hoop.ringEndPos.x - 2)) && (lowerBounds[index].y <= (game.hoop.ringStartPos.y + 7)) && (lowerBounds[index].y >= (game.hoop.ringStartPos.y - 7)))) {
+            || ((lowerBounds[index].x <= (game.hoop.ringEndPos.x + 1)) && (lowerBounds[index].x >= (game.hoop.ringEndPos.x - 1)) && (lowerBounds[index].y <= (game.hoop.ringStartPos.y + 12)) && (lowerBounds[index].y >= (game.hoop.ringStartPos.y - 5)))) {
             touching = true;
             break;
         }
@@ -1525,20 +1525,20 @@ bool isItTouchingRing(Basketball ball) {
     return touching;
 }
 
-bool didItScore(Basketball ball) {
-    // is the lower half of the ball touching the ring?
-    bool scored = false;
+// bool didItScore(Basketball ball) {
+//     // is the lower half of the ball touching the ring?
+//     bool scored = false;
     
-    for (int index = 0; index < 2*BASKETBALL_RADIUS; index++) {
-        if (oldLowerBounds[index].x <= 83 && oldLowerBounds[index].x >= 41 && (oldLowerBounds[index].y <= 106) && (oldLowerBounds[index].y >= 95) && (ball.oldVel1.y < 0)) {
-            if (oldLowerBounds[index].x <= 75 && oldLowerBounds[index].x >= 47 && (oldLowerBounds[index].y <= 119) && (oldLowerBounds[index].y >= 113) && (ball.currentVel.y < 0)) {
-                scored = true;
-                break;
-            }
-        }
-    }
-    return scored;
-}
+//     for (int index = 0; index < 2*BASKETBALL_RADIUS; index++) {
+//         if (oldLowerBounds[index].x <= 83 && oldLowerBounds[index].x >= 41 && (oldLowerBounds[index].y <= 106) && (oldLowerBounds[index].y >= 95) && (ball.oldVel1.y < 0)) {
+//             if (lowerBounds[index].x <= 33 && lowerBounds[index].x >= 41 && (lowerBounds[index].y <= 119) && (lowerBounds[index].y >= 113) && (ball.currentVel.y < 0)) {
+//                 scored = true;
+//                 break;
+//             }
+//         }
+//     }
+//     return scored;
+// }
 
 
 // bPPX !
@@ -1613,22 +1613,27 @@ void updateBasketball(Basketball *ball) {
             lowerBounds[bounds].x = ball->currentPos.x + x;
             lowerBounds[bounds].y = y1;
         }
-        
-        // increment score if the ball passses the ring, check if the vertical velocity component is downwards
-        // if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) /*the ball x-position is inside the ring*/
-        //     && (ball->currentPos.y - BASKETBALL_RADIUS >= (game.hoop.ringStartPos.y - 5)) && (ball->currentPos.y + BASKETBALL_RADIUS <= (game.hoop.ringStartPos.y + 20)) /* the ball is within 30 pixels of the y-postion of the ring*/
-        //     && (ball->currentVel.y < 0)) /* the ball is moving down */ { 
-        //     game.currentRound.playerTurn->score++;
-        //     printf("SCORED!\n");
+ 
+
+        // // increment score if the ball passses the ring, check if the vertical velocity component is downwards
+        // if (!incremented) {
+        //     if (didItScore(*ball)) {
+        //         game.currentRound.playerTurn->score++;
+        //         printf("SCORED!\n");
+        //         incremented = true;
+        //     }
         // }
 
         // increment score if the ball passses the ring, check if the vertical velocity component is downwards
         if (!incremented) {
-            if (didItScore(*ball)) {
+            if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) /*the ball x-position is inside the ring*/
+                && (ball->currentPos.y - BASKETBALL_RADIUS >= (game.hoop.ringStartPos.y - 10)) && (ball->currentPos.y + BASKETBALL_RADIUS <= (game.hoop.ringStartPos.y + 20)) /* the ball is within 30 pixels of the y-postion of the ring*/
+                && (ball->currentVel.y < 0)) /* the ball is moving down */ { 
+                
                 game.currentRound.playerTurn->score++;
                 printf("SCORED!\n");
                 incremented = true;
-            }
+            }    
         }
         
         // check if it hit the frame
@@ -1661,9 +1666,7 @@ void updateBasketball(Basketball *ball) {
             // erase_basketball(&ball);
 
         // check if the ball hit the ring
-        } 
-        
-        if (isItTouchingRing(*ball)) {
+        } else if (isItTouchingRing(*ball)) {
 
             erase_basketball(ball);
             
@@ -1690,6 +1693,7 @@ void updateBasketball(Basketball *ball) {
             erased = true;
             // erase_basketball(&ball);
         } 
+    
     }
     
     // If the basketball has hit the ground or is out of screen boudaries
