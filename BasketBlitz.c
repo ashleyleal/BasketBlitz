@@ -710,7 +710,7 @@ void updateState(Game *game) {
                 updated = true;
 
 				// set the angle of projection
-			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
+			} else if (pressedKey == RIGHT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
                 // update the old angles
                 game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
@@ -727,7 +727,7 @@ void updateState(Game *game) {
 
                 updated = true;
 
-			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
+			} else if (pressedKey == LEFT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
                 
                 // update the old angles
