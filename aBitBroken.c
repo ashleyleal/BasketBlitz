@@ -642,7 +642,7 @@ void updateState(Game *game) {
                 draw_image(round2, (Position){0, 0}, 320, 240);
 				
 				// release the ball
-			} else if (pressedKey == SPACEBAR && keyPressed && !(game->currentBall.isMoving)) {
+			} else if (pressedKey == SPACEBAR && keyPressed) {
                 keyPressed = false;
 				printf("ball should move\n");
 				game->currentBall.isMoving = true;
@@ -846,7 +846,7 @@ void updateState(Game *game) {
                 draw_image(round2, (Position){0, 0}, 320, 240);
 				
 				// release the ball
-			} else if (pressedKey == SPACEBAR && keyPressed && !(game->currentBall.isMoving)) {
+			} else if (pressedKey == SPACEBAR && keyPressed) {
                 keyPressed = false;
 				printf("ball should move\n");
 				game->currentBall.isMoving = true;
