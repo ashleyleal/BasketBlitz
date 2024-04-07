@@ -413,15 +413,21 @@ void drawWinner(Game *game);
 
 /* Game Logic helper functions Prototypes */
 bool isItTouchingRing(Basketball ball);
-void updateReboundVel(Basketball *ball, bool hitRing);
+bool didItScore(Basketball ball);
+void updateVelocity(Basketball *ball);
 
 /* FSM Functions Prototypes */
 void updateState(Game *game);
 
 Position lowerBounds[2*BASKETBALL_RADIUS]; // keeps track of the coordinates of the lower half of the ball
+Position oldLowerBounds[2*BASKETBALL_RADIUS]; // keeps track of the coordinates of the lower half of the ball
+
 int visit1;
 int visit2;
 bool erased;
+
+// variable to keep track if the moving ball has already scored 
+bool incremented;
 
 int main(void) {
     /****************** VGA SETUP ******************/
@@ -635,6 +641,7 @@ void updateState(Game *game) {
                 keyPressed = false;
 				printf("ball should move\n");
 				game->currentBall.isMoving = true;
+                incremented = false;
                 
 				// set the ball position
             } else if (pressedKey == W && game->currentBall.currentPos.y < Y_DIM && keyPressed) {
@@ -710,7 +717,7 @@ void updateState(Game *game) {
                 updated = true;
 
 				// set the angle of projection
-			} else if (pressedKey == RIGHT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
+			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
                 // update the old angles
                 game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
@@ -727,7 +734,7 @@ void updateState(Game *game) {
 
                 updated = true;
 
-			} else if (pressedKey == LEFT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
+			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
                 
                 // update the old angles
@@ -912,7 +919,7 @@ void updateState(Game *game) {
                 updated = true;
 
 				// set the angle of projection
-			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
+			} else if (pressedKey == RIGHT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
                 // update the old angles
                 game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
@@ -929,7 +936,7 @@ void updateState(Game *game) {
 
                 updated = true;
 
-			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
+			} else if (pressedKey == LEFT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
                 
                 // update the old angles
@@ -1295,8 +1302,6 @@ void drawProjectile(Game *game) {
         // Check if the new position is within the screen boundaries
         if (new_x >= 0 && new_x < 320 && new_y >= 0 && new_y < 240) {
             draw_line(x, y, new_x, new_y, 0xFFFF);
-        } else {
-            continue; // Skip the rest of the loop
         }
 
         // Update the position and velocity
@@ -1444,6 +1449,8 @@ void initializeGame(Game *game) {
     for (int x = -radius, bounds = 0; x <= radius, bounds <= 2*radius ; x++, bounds++) {
         int y1 = y0 + sqrt(radius * radius - x * x);
         
+        oldLowerBounds[bounds] = lowerBounds[bounds];
+
         lowerBounds[bounds].x = x0 + x;
         lowerBounds[bounds].y = y1;
     }
@@ -1510,12 +1517,40 @@ bool isItTouchingRing(Basketball ball) {
     
     for (int index = 0; index < 2*BASKETBALL_RADIUS; index++) {
         if ((lowerBounds[index].x <= game.hoop.ringStartPos.x && lowerBounds[index].x >= game.hoop.boardTopPos.x && (lowerBounds[index].y <= game.hoop.ringStartPos.y + 5) && (lowerBounds[index].y >= game.hoop.ringStartPos.y - 5)) 
-             || ((lowerBounds[index].x <= (game.hoop.ringEndPos.x + 2)) && (lowerBounds[index].x >= (game.hoop.ringEndPos.x - 2)) && (lowerBounds[index].y <= (game.hoop.ringStartPos.y + 10)) && (lowerBounds[index].y >= (game.hoop.ringStartPos.y - 10)))) {
-            return true;
+            || ((lowerBounds[index].x <= (game.hoop.ringEndPos.x + 2)) && (lowerBounds[index].x >= (game.hoop.ringEndPos.x - 2)) && (lowerBounds[index].y <= (game.hoop.ringStartPos.y + 7)) && (lowerBounds[index].y >= (game.hoop.ringStartPos.y - 7)))) {
+            touching = true;
+            break;
         }
     }
     return touching;
 }
+
+bool didItScore(Basketball ball) {
+    // is the lower half of the ball touching the ring?
+    bool scored = false;
+    
+    for (int index = 0; index < 2*BASKETBALL_RADIUS; index++) {
+        if (oldLowerBounds[index].x <= 83 && oldLowerBounds[index].x >= 41 && (oldLowerBounds[index].y <= 106) && (oldLowerBounds[index].y >= 95) && (ball.oldVel1.y < 0)) {
+            if (oldLowerBounds[index].x <= 75 && oldLowerBounds[index].x >= 47 && (oldLowerBounds[index].y <= 119) && (oldLowerBounds[index].y >= 113) && (ball.currentVel.y < 0)) {
+                scored = true;
+                break;
+            }
+        }
+    }
+    return scored;
+}
+
+
+// bPPX !
+//TL: {41, 95}
+// TR: {83, 95}
+// BL: {41, 106}
+// BR: {83, 106}
+
+//TL: {47, 113}
+// TR: {75, 113}
+// BL: {47, 119}
+// BR: {75, 119}
 
 void updateVelocity(Basketball *ball) {
     // get the new angle of the ball
@@ -1572,19 +1607,31 @@ void updateBasketball(Basketball *ball) {
 
         for (int x = -radius, bounds = 0; x <= radius, bounds <= 2*BASKETBALL_RADIUS ; x++, bounds++) {
             int y1 = ball->currentPos.y + sqrt(radius * radius - x * x);
-            
+
+            oldLowerBounds[bounds] = lowerBounds[bounds];
+
             lowerBounds[bounds].x = ball->currentPos.x + x;
             lowerBounds[bounds].y = y1;
         }
         
         // increment score if the ball passses the ring, check if the vertical velocity component is downwards
-        if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) /*the ball x-position is inside the ring*/
-            && (ball->currentPos.y - BASKETBALL_RADIUS >= (game.hoop.ringStartPos.y - 15)) && (ball->currentPos.y + BASKETBALL_RADIUS <= (game.hoop.ringStartPos.y + 15)) /* the ball is within 30 pixels of the y-postion of the ring*/
-            && (ball->currentVel.y < 0)) /* the ball is moving down */ { 
-            game.currentRound.playerTurn->score++;
-            printf("SCORED!\n");
-        }
+        // if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) /*the ball x-position is inside the ring*/
+        //     && (ball->currentPos.y - BASKETBALL_RADIUS >= (game.hoop.ringStartPos.y - 5)) && (ball->currentPos.y + BASKETBALL_RADIUS <= (game.hoop.ringStartPos.y + 20)) /* the ball is within 30 pixels of the y-postion of the ring*/
+        //     && (ball->currentVel.y < 0)) /* the ball is moving down */ { 
+        //     game.currentRound.playerTurn->score++;
+        //     printf("SCORED!\n");
+        // }
 
+        // increment score if the ball passses the ring, check if the vertical velocity component is downwards
+        if (!incremented) {
+            if (didItScore(*ball)) {
+                game.currentRound.playerTurn->score++;
+                printf("SCORED!\n");
+                incremented = true;
+            }
+        }
+        
+        // check if it hit the frame
         if ((new_x - radius*1.5) <= game.hoop.boardTopPos.x && (new_y + radius*1.5) <= game.hoop.boardBottomPos.y && (new_y - radius*1.5) >= game.hoop.boardTopPos.y) {
             // conservation of momentum: assuming elastic collision (no drag / air resistance)
             // m1u1 + m2u2 = m1v1 + m2v2
@@ -1614,7 +1661,9 @@ void updateBasketball(Basketball *ball) {
             // erase_basketball(&ball);
 
         // check if the ball hit the ring
-        } else if (isItTouchingRing(*ball)) {
+        } 
+        
+        if (isItTouchingRing(*ball)) {
 
             erase_basketball(ball);
             
@@ -1661,6 +1710,7 @@ void updateBasketball(Basketball *ball) {
         ball->currentVel.y = ball->initialVel.y;
         ball->projTime = 0;
         ball->isMoving = false;
+        incremented = false;
     }
 }
 
@@ -3601,6 +3651,7 @@ const unsigned short hoopAndFloor[]  = {
   0xd529, 0xd529, 0xd528, 0xcd08, 0xd529, 0xd528, 0xd529, 0xd528, 0xcd08, 0xd528, 0xd529, 0xd529, 0xcd28, 0xd529, 0xcd28, 0xd528, 0xd529, 0xd529, 0xd528, 0xd528, 0xd528, 0xd529, 0xd529, 0xd528, 0xd528, 0xd529, 0xcd28, 0xd529, 0xd529, 0xcd28, 0xcd28, 0xcd28, 0xd529, 0xd528, 0xd528, 0xd528, 0xd528, 0xcd08, 0xd528, 0xcd28, 0xd529, 0xd529, 0xd528, 0xd529, 0xcd08, 0xcd28, 0xd528, 0xcd28, 0xcd28, 0xd528, 0xcd28, 0xcd28, 0xd529, 0xd529, 0xcd28, 0xd529, 0xcd28, 0xcd08, 0xd529, 0xd529, 0xd528, 0xd529, 0xd529, 0xd529, 0xd528, 0xcd28, 0xcd28, 0xd528, 0xd528, 0xcd28, 0xd528, 0xd529, 0xd529, 0xd529, 0xcd28, 0xd528, 0xd528, 0xcd28, 0xd529, 0xd528, 0xcd28, 0xd528, 0xd528, 0xd528, 0xd529, 0xd528, 0xd528, 0xd529, 0xcd28, 0xcd08, 0xd529, 0xd529, 0xd529, 0xd528, 0xcd28, 0xd528, 0xd528, 0xd529, 0xd529, 0xd529, 0xd528, 0xcd28, 0xd528, 0xd529, 0xd528, 0xcd28, 0xd529, 0xd529, 0xd528, 0xd528, 0xcd28, 0xd528, 0xd528, 0xd528, 0xd528, 0xcd28, 0xd529, 0xd528, 0xd528, 0xd529, 0xd528, 0xcd28, 0xcd28, 0xcd08, 0xd529, 0xd529, 0xd528, 0xd529, 0xcd28, 0xd528, 0xd528, 0xd528, 0xd529, 0xd529, 0xd549, 0xd529, 0xd528, 0xcd28, 0xcd28, 0xd529, 0xd529, 0xd528, 0xd529, 0xcd28, 0xd528, 0xd528, 0xd528, 0xd529, 0xd528, 0xd529, 0xd528, 0xd528, 0xd529, 0xd529, 0xd529, 0xd529, 0xd529, 0xd529, 0xd528, 0xd528, 0xd529, 0xd529, 0xd529, 0xcd08, 0xd529, 0xcd28, 0xd528, 0xd528, 0xd528, 0xd528, 0xd529, 0xd529, 0xd528, 0xd528, 0xd528, 0xcd28, 0xcd28, 0xd528, 0xd529, 0xd529, 0xcd08, 0xd528, 0xd528, 0xd529, 0xd529, 0xd528, 0xd528, 0xd529, 0xd529, 0xd528, 0xd528, 0xd528, 0xcd28, 0xd528, 0xd528, 0xcd08, 0xd528, 0xd528, 0xcd28, 0xd529, 0xd528, 0xcd08, 0xd529, 0xd528, 0xd528, 0xd528, 0xcd08, 0xd529, 0xd529, 0xd529, 0xd529, 0xd528, 0xd529, 0xcd28, 0xcd28, 0xd528, 0xd529, 0xd529, 0xd528, 0xd529, 0xd529, 0xd528, 0xd529, 0xd528, 0xd528, 0xd529, 0xd528, 0xd549, 0xcd28, 0xcd28, 0xd528, 0xcd08, 0xd529, 0xcd08, 0xcd28, 0xd529, 0xd528, 0xcd28, 0xd528, 0xd528, 0xd529, 0xcd28, 0xcd28, 0xcd28, 0xd528, 0xd528, 0xd528, 0xcd28, 0xd528, 0xcd28, 0xcd28, 0xcd28, 0xd529, 0xd529, 0xd528, 0xd528, 0xd528, 0xd528, 0xcd08, 0xd529, 0xcd28, 0xcd28, 0xcd28, 0xd528, 0xd528, 0xd529, 0xd529, 0xcd08, 0xd528, 0xd528, 0xd528, 0xcd08, 0xd529, 0xcd28, 0xd528, 0xcd28, 0xd528, 0xd528, 0xd528, 0xcd28, 0xd528, 0xd529, 0xd549, 0xd528, 0xd529, 0xd528, 0xcd08, 0xd528, 0xd529, 0xd529, 0xd529, 0xcd28, 0xcd28, 0xd528, 0xd529, 0xd528, 0xd529, 0xcd28, 0xcd28, 0xd528, 0xcd08, 0xd528, 0xcd28, 0xd528, 0xd529, 0xd528, 0xd529, 0xd528, 0xd528, 0xcd28, 0xd528, 0xd529, 0xd528, 0xcd28, 0xcd08, 0xd529, 0xd529, 0xd529, 0xd529, 0xcd28, 
   0xd529, 0xd528, 0xd528, 0xd529, 0xd528, 0xd528, 0xcd28, 0xd528, 0xd529, 0xd528, 0xd529, 0xd529, 0xd528, 0xcd28, 0xd529, 0xd529, 0xcd28, 0xcd28, 0xd529, 0xcd08, 0xd529, 0xd529, 0xd529, 0xcd08, 0xd529, 0xd529, 0xcd28, 0xd529, 0xcd28, 0xd529, 0xd529, 0xd528, 0xd528, 0xcd28, 0xcd28, 0xcd28, 0xd528, 0xd528, 0xcd08, 0xd528, 0xd529, 0xcd28, 0xcd08, 0xd529, 0xcd28, 0xd528, 0xd528, 0xd529, 0xcd28, 0xd528, 0xd529, 0xd529, 0xd528, 0xd528, 0xd528, 0xcd08, 0xd528, 0xd529, 0xcd08, 0xcd28, 0xd528, 0xd529, 0xd528, 0xd528, 0xd528, 0xd529, 0xd529, 0xd529, 0xd529, 0xd529, 0xd528, 0xcd28, 0xd528, 0xd528, 0xd529, 0xcd08, 0xd528, 0xcd28, 0xd528, 0xd528, 0xd529, 0xd549, 0xcd28, 0xd529, 0xd528, 0xd528, 0xd529, 0xcd28, 0xd529, 0xd528, 0xd528, 0xd528, 0xcd28, 0xd528, 0xd528, 0xd528, 0xcd28, 0xd529, 0xd529, 0xd529, 0xd528, 0xcd28, 0xd529, 0xcd28, 0xd529, 0xd528, 0xd528, 0xd528, 0xd528, 0xd529, 0xd529, 0xcd28, 0xd528, 0xd529, 0xd529, 0xd529, 0xd529, 0xd528, 0xcd28, 0xcd28, 0xd528, 0xd529, 0xd529, 0xcd28, 0xcd08, 0xcd08, 0xd528, 0xd529, 0xd529, 0xd529, 0xd528, 0xd529, 0xd529, 0xd529, 0xd528, 0xd528, 0xd529, 0xd529, 0xd529, 0xd529, 0xd529, 0xd528, 0xd529, 0xd529, 0xd529, 0xd528, 0xd529, 0xcd28, 0xcd28, 0xcd28, 0xd528, 0xcd28, 0xcd08, 0xd528, 0xd529, 0xcd28, 0xd528, 0xcd28, 0xd529, 0xd529, 0xcd28, 0xd528, 0xcd28, 0xd529, 0xcd28, 0xd529, 0xd529, 0xd528, 0xcd28, 0xcd28, 0xd528, 0xd528, 0xd529, 0xd528, 0xd529, 0xcd08, 0xd528, 0xd528, 0xd529, 0xcd08, 0xcd28, 0xcd28, 0xd528, 0xd528, 0xcd28, 0xd529, 0xd528, 0xd528, 0xd529, 0xd529, 0xcd08, 0xd528, 0xd529, 0xd528, 0xcd28, 0xcd08, 0xd528, 0xcd28, 0xd529, 0xcd28, 0xcd08, 0xd529, 0xcd28, 0xd528, 0xd529, 0xd529, 0xd529, 0xd529, 0xd528, 0xd528, 0xd529, 0xd529, 0xcd28, 0xcd28, 0xd528, 0xcd08, 0xd529, 0xd529, 0xd529, 0xd529, 0xcd28, 0xcd28, 0xd528, 0xd528, 0xd529, 0xcd28, 0xcd08, 0xcd08, 0xd528, 0xd528, 0xd528, 0xcd08, 0xcd08, 0xd529, 0xd529, 0xcd28, 0xd528, 0xd529, 0xcd08, 0xd529, 0xcd08, 0xcd28, 0xd529, 0xd528, 0xcd28, 0xd528, 0xd529, 0xd529, 0xd528, 0xd528, 0xd528, 0xd528, 0xd528, 0xd528, 0xd528, 0xd528, 0xd529, 0xcd28, 0xd528, 0xd528, 0xd529, 0xd528, 0xcd08, 0xd529, 0xd528, 0xcd28, 0xcd28, 0xd528, 0xd529, 0xd528, 0xcd28, 0xcd28, 0xd528, 0xcd08, 0xcd08, 0xd529, 0xcd28, 0xd528, 0xcd28, 0xcd28, 0xd528, 0xd528, 0xd529, 0xcd28, 0xd529, 0xd528, 0xd528, 0xd528, 0xd528, 0xcd08, 0xcd08, 0xd529, 0xd528, 0xcd28, 0xd528, 0xd528, 0xcd28, 0xd528, 0xd528, 0xcd28, 0xcd28, 0xd529, 0xd528, 0xd528, 0xcd28, 0xd528, 0xcd28, 0xd529, 0xcd28, 0xd528, 0xd529, 0xd528, 0xcd28, 0xd528, 0xd529, 0xd528, 0xd529, 0xd528, 0xd528, 0xd529
 };
+
 const unsigned short basketballLines[]  = {
   0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x18c2, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
   0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x18c2, 0x18c2, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
