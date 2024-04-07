@@ -1295,6 +1295,8 @@ void drawProjectile(Game *game) {
         // Check if the new position is within the screen boundaries
         if (new_x >= 0 && new_x < 320 && new_y >= 0 && new_y < 240) {
             draw_line(x, y, new_x, new_y, 0xFFFF);
+        } else {
+            continue; // Skip the rest of the loop
         }
 
         // Update the position and velocity
