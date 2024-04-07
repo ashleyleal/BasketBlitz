@@ -1226,11 +1226,14 @@ void draw_basketball(Basketball *ball, short int color, bool fill) {
                 if (x0 + x >= 0 && x0 + x < X_DIM && y >= 0 && y < Y_DIM) {
                     plot_pixel(x0 + x, y, color);
                 }
+                else {
+                    continue;
+                }
             }
         }
-    // draw the lines of the basketball from the top corner to the bottom corner
-    draw_image(basketballLines, (Position){x0 - 7, y0 - 7}, 15, 15);
     }
+    
+    draw_image(basketballLines, (Position){x0 - 7, y0 - 7}, 15, 15);
 }
 
 void draw_image(const unsigned short image[], Position pos, int width, int height) {
