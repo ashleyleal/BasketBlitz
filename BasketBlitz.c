@@ -228,7 +228,7 @@ Timer *timer2 = (Timer *)0xFF202020;
 
 typedef struct {
     int roundNumber;
-    Player playerTurn;
+    Player* playerTurn;
     int currentTime;
     int maxTime;
     bool isRoundOver;
@@ -770,6 +770,8 @@ void updateState(Game *game) {
 
         case SETUP_ROUND2:
 
+            printf("Player 1 score: %d\n", game->player1.score);
+            printf("Current player score: %d\n", game->currentRound.playerTurn->score);
             wait(2);
             clear_screen();
             initializeRound2(game);
@@ -972,7 +974,7 @@ void updateState(Game *game) {
             break;
 
         case GAME_OVER:
-
+            printf("Player 2 score: %d\n", game->player2.score);
             // printf("Game over\n");
             clear_screen();
             draw_image(gameover, (Position){0, 0}, 320, 240);
@@ -1271,7 +1273,7 @@ void drawNumberImage(int num, int xPos, int yPos) {
 
 void drawScore(Game *game) {
 
-    int score = (int)(game->currentRound.playerTurn.score);
+    int score = (int)(game->currentRound.playerTurn->score);
 
     int ones = score % 10;
     if (ones < 0) {
@@ -1326,7 +1328,7 @@ void drawWinner(Game *game) {
 void initializeRound1(Game *game) {
     Round round1;
     round1.roundNumber = 1;
-    round1.playerTurn = game->player1;
+    round1.playerTurn = &(game->player1);
     round1.currentTime = 0;
     round1.maxTime = 80;
     round1.isRoundOver = false;
@@ -1337,7 +1339,7 @@ void initializeRound1(Game *game) {
 void initializeRound2(Game *game) {
     Round round2;
     round2.roundNumber = 2;
-    round2.playerTurn = game->player2;
+    round2.playerTurn = &(game->player2);
     round2.currentTime = 0;
     round2.maxTime = 80;
     round2.isRoundOver = false;
@@ -1394,7 +1396,7 @@ void initializeGame(Game *game) {
     game->isGameOver = false;
     game->currentState = INITIALIZING;
     game->previousState = NONE;
-    game->currentRound = (Round){0, game->player1, 0, 0, true};
+    game->currentRound = (Round){0, &(game->player1), 0, 0, true};
 }
 
 void initializeBasketball(Basketball *ball) {
@@ -1505,7 +1507,7 @@ void updateBasketball(Basketball *ball) {
         if (((ball->currentPos.x - BASKETBALL_RADIUS) >= game.hoop.ringStartPos.x) && ((ball->currentPos.x + BASKETBALL_RADIUS) <= game.hoop.ringEndPos.x) /*the ball x-position is inside the ring*/
             && (ball->currentPos.y - BASKETBALL_RADIUS >= (game.hoop.ringStartPos.y - 15)) && (ball->currentPos.y + BASKETBALL_RADIUS <= (game.hoop.ringStartPos.y + 15)) /* the ball is within 30 pixels of the y-postion of the ring*/
             /*&& (ball->currentVel.y < 0)*/) /* the ball is moving down */ {
-            game.currentRound.playerTurn.score++;
+            game.currentRound.playerTurn->score++;
             printf("SCORED!\n");
         }
 
