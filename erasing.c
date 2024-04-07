@@ -134,7 +134,6 @@ volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
 volatile int *PS2_ptr = (int *)0xFF200100;
 unsigned char byte1 = 0, byte2 = 0, byte3 = 0;
 unsigned char pressedKey = 0;
-unsigned char oldPressedKey = 0;
 bool keyPressed = false;
 
 int tempTime = 0;  // Temporary time variable to store increments
@@ -541,13 +540,11 @@ void ps2_ISR(Game *game) {
         byte3 = PS2_data & 0xFF;
 
         // find the key that was pressed
-        oldPressedKey = pressedKey;
         pressedKey = byte3;
 
         keyPressed = true;
 
     } else {
-        oldPressedKey = pressedKey;
         pressedKey = 0;
         keyPressed = false;
     }
@@ -1584,12 +1581,12 @@ void updateBasketball(Basketball *ball) {
             // conservation of momentum: assuming elastic collision (no drag / air resistance)
             // m1u1 + m2u2 = m1v1 + m2v2
 
-            erase_basketball(&ball);
+            erase_basketball(ball);
             // changing the position again due to the rebound so we need to erase the old position from the back buffer and draw the new one on it
             wait_for_vsync();                            // Swap buffers
             pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // Back buffer
 
-            erase_basketball(&ball);
+            erase_basketball(ball);
             
             // store the old velocities of the ball
             ball->oldVel2 = ball->oldVel1;
@@ -1611,12 +1608,12 @@ void updateBasketball(Basketball *ball) {
         // check if the ball hit the ring
         } else if (isItTouchingRing(*ball)) {
 
-            erase_basketball(&ball);
+            erase_basketball(ball);
             
             // changing the position again due to the rebound so we need to erase the old position from the back buffer and draw the new one on it
             wait_for_vsync();                            // Swap buffers
             pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // Back buffer
-            erase_basketball(&ball);
+            erase_basketball(ball);
 
             // store old velocities
             ball->oldVel2 = ball->oldVel1;
