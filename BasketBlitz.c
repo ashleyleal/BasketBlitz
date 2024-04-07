@@ -120,7 +120,7 @@
 #define MIN_ANGLE 0   // 3rd quadrant starts
 #define MAX_VELOCITY 100   // 3rd quadrant starts
 #define MIN_VELOCITY 40   // 3rd quadrant starts
-#define halfRadian 0.05
+#define halfRadian 0.025
 #define faster 5
 #define TIMERSEC 100000000  // 1 second
 
@@ -717,7 +717,7 @@ void updateState(Game *game) {
                 updated = true;
 
 				// set the angle of projection
-			} else if (pressedKey == LEFT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
+			} else if (pressedKey == RIGHT && game->currentBall.currentAngle < MAX_ANGLE && keyPressed) {
 				keyPressed = false;
                 // update the old angles
                 game->currentBall.oldAngle2 = game->currentBall.oldAngle1;
@@ -734,7 +734,7 @@ void updateState(Game *game) {
 
                 updated = true;
 
-			} else if (pressedKey == RIGHT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
+			} else if (pressedKey == LEFT && game->currentBall.currentAngle > MIN_ANGLE && keyPressed) {
 				keyPressed = false;
                 
                 // update the old angles
