@@ -1685,6 +1685,7 @@ void updateBasketball(Basketball *ball) {
     }
 }
 
+
 void updateGame(Game *game, int deltaTime) {
     // Update the basketball
     updateBasketball(&game->currentBall);
