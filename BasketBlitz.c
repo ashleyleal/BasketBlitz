@@ -615,7 +615,7 @@ void updateState(Game *game) {
             // draw the animated items
             drawScore(game);
             drawTimer(game);
-            draw_basketball(&game->currentBall, 0xFFFF, true);
+            draw_basketball(&game->currentBall, 0xc1e2, true);
 
             // only show projectile when the ball is static
             if (!(game->currentBall.isMoving)) {
@@ -796,7 +796,7 @@ void updateState(Game *game) {
             // draw the animated items
             drawScore(game);
             drawTimer(game);
-            draw_basketball(&game->currentBall, 0xFFFF, true);
+            draw_basketball(&game->currentBall, 0xc1e2, true);
 
             // only show projectile when the ball is static
             if (!(game->currentBall.isMoving)) {
