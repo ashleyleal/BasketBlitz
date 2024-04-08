@@ -13,3 +13,7 @@ Disable all Debugging Checks warnings in the Settings (on the left menu)
 Download BasketBlitz.c and open it in through the File dropdown
 Press Compile and Load (or press F5), then click Continue (or press F3) to start the program
 View the game graphics through the VGA pixel buffer and use the PS/2 keyboard for controls (on the right menu)
+
+# How to Play
+
+# Team
