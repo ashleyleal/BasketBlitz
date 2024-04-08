@@ -7,12 +7,12 @@ BasketBlitz is a two-player basketball game written in C for the DE1-SoC board d
 Full Demo: https://www.youtube.com/watch?v=Kv7HDWRfsds&ab_channel=AshleyL
 
 # Setup
-Go to https://cpulator.01xz.net/?sys=nios-de1soc
-Change the language in the dropdown menu from Nios II to C
-Disable all Debugging Checks warnings in the Settings (on the left menu)
-Download BasketBlitz.c and open it in through the File dropdown
-Press Compile and Load (or press F5), then click Continue (or press F3) to start the program
-View the game graphics through the VGA pixel buffer and use the PS/2 keyboard for controls (on the right menu)
+> Go to https://cpulator.01xz.net/?sys=nios-de1soc
+> Change the language in the dropdown menu from Nios II to C
+> Disable all Debugging Checks warnings in the Settings (on the left menu)
+> Download BasketBlitz.c and open it in through the File dropdown
+> Press Compile and Load (or press F5), then click Continue (or press F3) to start the program
+> View the game graphics through the VGA pixel buffer and use the PS/2 keyboard for controls (on the right menu)
 
 # How to Play
 
