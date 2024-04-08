@@ -8,6 +8,7 @@ Full Demo: https://www.youtube.com/watch?v=Kv7HDWRfsds&ab_channel=AshleyL
 
 # Setup
 > Go to https://cpulator.01xz.net/?sys=nios-de1soc
+![image](https://github.com/ashleyleal/BasketBlitz/assets/69736735/a4288d45-156c-4604-95be-56fa0d25c1dd)
 > Change the language in the dropdown menu from Nios II to C
 > Disable all Debugging Checks warnings in the Settings (on the left menu)
 > Download BasketBlitz.c and open it in through the File dropdown
