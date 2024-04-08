@@ -1,5 +1,3 @@
-# ECE243-BasketBlitz
-ECE243 Final Project
+# BasketBlitz
 
-Proposal:
-Two players shoot basketballs into the hoop in a projectile motion on the VGA, with release controlled by the PS2 keyboard arrow keys and the position of the player adjusted by buttons on the DE1-SoC board. Points are awarded based on the number of goals scored within the time limit. Moving hoops (more than one) at higher levels increase difficulty and award more points. The sound of a cheering crowd may be incorporated.
+BasketBlitz is a two-player basketball game designed to offer players an immersive experience of competing against each other in a timed basketball shooting contest. This game utilizes the PS2 keyboard with interrupts for controls, as well as the hardware timer with interrupts to handle game time. Double buffering is utilized to dynamically show graphics on the VGA.
