@@ -34,15 +34,15 @@ Full Demo: https://www.youtube.com/watch?v=Kv7HDWRfsds&ab_channel=AshleyL
 
 ## How to Play
 ### Controls
-- Left Arrow Key: Increase launch angle
-- Right Arrow Key: Decrease launch angle
-- Up Arrow Key: Increase shooting power
-- Down Arrow Key: Decrease shooting power
-- W Key: Move basketball up
-- A Key: Move basketball left
-- S Key: Move basketball down
-- D Key: Move basketball right
-- Spacebar: Shoot basketball!
+- `Left Arrow` Key: Increase launch angle
+- `Right Arrow` Key: Decrease launch angle
+- `Up Arrow` Key: Increase shooting power
+- `Down Arrow` Key: Decrease shooting power
+- `W` Key: Move basketball up
+- `A` Key: Move basketball left
+- `S` Key: Move basketball down
+- `D` Key: Move basketball right
+- `Spacebar`: Shoot basketball!
 
 ### Gameplay
 - Player 1 plays Round 1 and Player 2 plays Round 2.
