@@ -45,7 +45,6 @@ Full Demo: https://www.youtube.com/watch?v=Kv7HDWRfsds&ab_channel=AshleyL
 - `Spacebar`: Shoot basketball!
 
 ### Gameplay
-- Player 1 plays Round 1 and Player 2 plays Round 2.
 - Score as many points as possible to win against your opponent!
 - Utilize the backboard to your advantage for rebound shots (tip).
 
